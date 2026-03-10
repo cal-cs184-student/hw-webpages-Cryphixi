@@ -750,6 +750,18 @@
 					<figcaption>Cube pre-processed — level 2 (symmetric)</figcaption>
 				</figure>
 			</div>
+			<strong>Debugging Journey — Part 5 & 6:</strong>
+			<p style="margin-top:0.8rem">
+				The biggest bug came from the <code>isNew</code> flags on the new edges created in <code>splitEdge</code>. When Part 6's loop subdivision ran, it uses these flags to decide which edges to flip in Step 4. Upsamples only flips new edges that connect an old and new vertex. Initially all three new edges (<code>eA1</code>, <code>eB1</code>, <code>eC1</code>) were marked <code>isNew = true</code>, but <code>eA1</code> and <code>eB1</code> run parallel to the original split edge and should NOT be flipped. Only <code>eC1</code> truly connects an old vertex to a new one across the mesh. Marking <code>eA1</code> and <code>eB1</code> as <code>isNew = false</code> fixed the black triangles and wrong flips entirely.
+			</p>
+			<br>
+			<p>
+					Another subtle bug was that only 2 levels of subdivision were possible. This was because the <code>isNew</code> flags on edges and vertices were never reset at the start of each <code>upsample</code> call. Adding reset loops at the very beginning of <code>upsample</code> fixed this, allowing unlimited subdivision levels.
+			</p>
+			<br>
+			<p>
+					A third issue, I promise its the last one, was that Step 2's edge loop condition was written as <code>e != mesh.edgesBegin()</code> instead of <code>e != mesh.edgesEnd()</code>, meaning the loop never ran and all new vertices were placed at the origin, exploding the mesh.
+			</p>
 		</div>
 
 	</main>
