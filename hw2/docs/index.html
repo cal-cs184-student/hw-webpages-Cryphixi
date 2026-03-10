@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/html">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<title>CS184 · Homework 2 · Mesh Edit</title>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=default"></script>
+	<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+
+	<style>
+		:root {
+			--bg:        #0d0f14;
+			--surface:   #13161d;
+			--surface2:  #1a1e28;
+			--border:    #252a38;
+			--accent:    #5b8cff;
+			--accent2:   #a78bfa;
+			--text:      #e2e6f0;
+			--muted:     #7a829a;
+			--heading:   #ffffff;
+			--tag-bg:    #1e2436;
+		}
+
+		*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+		html { scroll-behavior: smooth; }
+
+		body {
+			background: var(--bg);
+			color: var(--text);
+			font-family: 'DM Sans', sans-serif;
+			font-weight: 300;
+			line-height: 1.75;
+			font-size: 16px;
+		}
+
+		/* ── Noise overlay ── */
+		body::before {
+			content: '';
+			position: fixed; inset: 0;
+			background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+			pointer-events: none; z-index: 0; opacity: 0.45;
+		}
+
+		/* ── Hero ── */
+		.hero {
+			position: relative;
+			min-height: 100vh;
+			display: flex; flex-direction: column; justify-content: flex-end;
+			padding: 0 8vw 6vh;
+			overflow: hidden;
+		}
+
+		.hero-grid {
+			position: absolute; inset: 0;
+			background-image:
+					linear-gradient(var(--border) 1px, transparent 1px),
+					linear-gradient(90deg, var(--border) 1px, transparent 1px);
+			background-size: 60px 60px;
+			mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
+			opacity: 0.35;
+		}
+
+		.hero-glow {
+			position: absolute;
+			width: 700px; height: 700px;
+			border-radius: 50%;
+			background: radial-gradient(circle, rgba(91,140,255,0.12) 0%, transparent 70%);
+			top: -200px; right: -100px;
+			pointer-events: none;
+		}
+
+		.hero-glow-2 {
+			position: absolute;
+			width: 500px; height: 500px;
+			border-radius: 50%;
+			background: radial-gradient(circle, rgba(167,139,250,0.08) 0%, transparent 70%);
+			bottom: -100px; left: 10%;
+			pointer-events: none;
+		}
+
+		.hero-label {
+			font-family: 'DM Mono', monospace;
+			font-size: 0.72rem;
+			letter-spacing: 0.18em;
+			text-transform: uppercase;
+			color: var(--accent);
+			margin-bottom: 1.2rem;
+			position: relative; z-index: 1;
+		}
+
+		.hero h1 {
+			font-family: 'Playfair Display', serif;
+			font-size: clamp(3rem, 7vw, 6.5rem);
+			font-weight: 700;
+			line-height: 1.05;
+			color: var(--heading);
+			position: relative; z-index: 1;
+			max-width: 900px;
+		}
+
+		.hero h1 em {
+			font-style: italic;
+			color: var(--accent2);
+		}
+
+		.hero-meta {
+			margin-top: 2.5rem;
+			display: flex; gap: 2.5rem; flex-wrap: wrap; align-items: center;
+			position: relative; z-index: 1;
+		}
+
+		.hero-meta a {
+			font-family: 'DM Mono', monospace;
+			font-size: 0.78rem;
+			color: var(--muted);
+			text-decoration: none;
+			letter-spacing: 0.06em;
+			border-bottom: 1px solid var(--border);
+			padding-bottom: 2px;
+			transition: color 0.2s, border-color 0.2s;
+		}
+		.hero-meta a:hover { color: var(--accent); border-color: var(--accent); }
+
+		.hero-name {
+			font-family: 'DM Mono', monospace;
+			font-size: 0.78rem;
+			color: var(--muted);
+			letter-spacing: 0.06em;
+		}
+
+		.scroll-hint {
+			position: absolute; bottom: 2.5rem; left: 50%; transform: translateX(-50%);
+			z-index: 1;
+			display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+			color: var(--muted);
+			font-family: 'DM Mono', monospace;
+			font-size: 0.65rem;
+			letter-spacing: 0.15em;
+			text-transform: uppercase;
+			animation: float 2.5s ease-in-out infinite;
+		}
+		.scroll-hint::after {
+			content: '';
+			width: 1px; height: 40px;
+			background: linear-gradient(to bottom, var(--muted), transparent);
+		}
+		@keyframes float {
+			0%, 100% { transform: translateX(-50%) translateY(0); }
+			50%       { transform: translateX(-50%) translateY(6px); }
+		}
+
+		/* ── Sidebar layout ── */
+		.layout {
+			display: grid;
+			grid-template-columns: 240px 1fr;
+			min-height: 100vh;
+			position: relative; z-index: 1;
+		}
+
+		/* ── Sidebar nav ── */
+		.sidebar {
+			position: sticky; top: 0; height: 100vh;
+			padding: 3rem 1.5rem 3rem 8vw;
+			display: flex; flex-direction: column; gap: 0.25rem;
+			border-right: 1px solid var(--border);
+			overflow-y: auto;
+		}
+
+		.sidebar-section {
+			font-family: 'DM Mono', monospace;
+			font-size: 0.62rem;
+			letter-spacing: 0.15em;
+			text-transform: uppercase;
+			color: var(--muted);
+			margin: 1.5rem 0 0.5rem;
+		}
+		.sidebar-section:first-child { margin-top: 0; }
+
+		.sidebar a {
+			font-size: 0.83rem;
+			color: var(--muted);
+			text-decoration: none;
+			padding: 0.3rem 0.6rem;
+			border-radius: 4px;
+			transition: background 0.15s, color 0.15s;
+			display: block;
+		}
+		.sidebar a:hover { background: var(--surface2); color: var(--text); }
+		.sidebar a.active { color: var(--accent); background: var(--tag-bg); }
+
+		/* ── Main content ── */
+		main {
+			padding: 5rem 6vw 8rem 4rem;
+			max-width: 860px;
+		}
+
+		/* ── Section headers ── */
+		.section-header {
+			display: flex; align-items: center; gap: 1rem;
+			margin-bottom: 0.5rem;
+		}
+
+		.section-tag {
+			font-family: 'DM Mono', monospace;
+			font-size: 0.65rem;
+			letter-spacing: 0.14em;
+			text-transform: uppercase;
+			background: var(--tag-bg);
+			color: var(--accent);
+			border: 1px solid var(--border);
+			padding: 0.2rem 0.6rem;
+			border-radius: 3px;
+			white-space: nowrap;
+		}
+
+		.section-line {
+			flex: 1; height: 1px;
+			background: linear-gradient(to right, var(--border), transparent);
+		}
+
+		/* ── Part headers ── */
+		.part {
+			margin-bottom: 6rem;
+			scroll-margin-top: 2rem;
+		}
+
+		.part h2 {
+			font-family: 'Playfair Display', serif;
+			font-size: clamp(1.6rem, 3vw, 2.2rem);
+			font-weight: 700;
+			color: var(--heading);
+			margin-bottom: 0.3rem;
+			line-height: 1.2;
+		}
+
+		.part-meta {
+			font-family: 'DM Mono', monospace;
+			font-size: 0.7rem;
+			color: var(--muted);
+			letter-spacing: 0.1em;
+			margin-bottom: 2rem;
+			padding-bottom: 1.5rem;
+			border-bottom: 1px solid var(--border);
+		}
+
+		/* Section label above a group of parts */
+		.section-label {
+			scroll-margin-top: 2rem;
+			margin-bottom: 3rem;
+		}
+
+		.section-label h2 {
+			font-family: 'Playfair Display', serif;
+			font-size: clamp(1rem, 2vw, 1.2rem);
+			font-style: italic;
+			color: var(--accent2);
+			margin-bottom: 0.2rem;
+		}
+
+		.section-label p {
+			font-size: 0.85rem;
+			color: var(--muted);
+			max-width: 600px;
+		}
+
+		/* ── Overview ── */
+		.overview {
+			margin-bottom: 5rem;
+			padding: 2.5rem;
+			background: var(--surface);
+			border: 1px solid var(--border);
+			border-radius: 8px;
+			position: relative;
+			overflow: hidden;
+		}
+
+		.overview::before {
+			content: '';
+			position: absolute; top: 0; left: 0; right: 0; height: 2px;
+			background: linear-gradient(90deg, var(--accent), var(--accent2));
+		}
+
+		.overview h2 {
+			font-family: 'Playfair Display', serif;
+			font-size: 1.4rem;
+			color: var(--heading);
+			margin-bottom: 1rem;
+		}
+
+		/* ── Prose ── */
+		p { margin-bottom: 1.2rem; color: var(--text); }
+
+		.placeholder {
+			font-family: 'DM Mono', monospace;
+			font-size: 0.8rem;
+			color: var(--muted);
+			font-style: italic;
+			background: var(--surface2);
+			border: 1px dashed var(--border);
+			border-radius: 6px;
+			padding: 1rem 1.2rem;
+			margin-bottom: 1.2rem;
+		}
+
+		/* ── Image grid ── */
+		.img-grid {
+			display: grid;
+			gap: 1rem;
+			margin: 2rem 0;
+		}
+		.img-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+		.img-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+		.img-grid.cols-1 { grid-template-columns: 1fr; }
+
+		.img-card {
+			background: var(--surface);
+			border: 1px solid var(--border);
+			border-radius: 6px;
+			overflow: hidden;
+		}
+		.img-card img {
+			width: 100%; display: block;
+			object-fit: cover;
+		}
+		.img-card figcaption {
+			padding: 0.6rem 0.8rem;
+			font-family: 'DM Mono', monospace;
+			font-size: 0.7rem;
+			color: var(--muted);
+			letter-spacing: 0.04em;
+			border-top: 1px solid var(--border);
+		}
+
+		/* ── Math ── */
+		.math-block {
+			background: var(--surface2);
+			border-left: 2px solid var(--accent);
+			border-radius: 0 6px 6px 0;
+			padding: 1rem 1.5rem;
+			margin: 1.5rem 0;
+			font-size: 1rem;
+			overflow-x: auto;
+		}
+
+		/* ── Code ── */
+		code {
+			font-family: 'DM Mono', monospace;
+			font-size: 0.82em;
+			background: var(--surface2);
+			border: 1px solid var(--border);
+			border-radius: 3px;
+			padding: 0.1em 0.4em;
+			color: var(--accent2);
+		}
+
+		/* ── Callout ── */
+		.callout {
+			background: var(--surface);
+			border: 1px solid var(--border);
+			border-left: 3px solid var(--accent2);
+			border-radius: 0 6px 6px 0;
+			padding: 1.2rem 1.5rem;
+			margin: 1.5rem 0;
+			font-size: 0.9rem;
+		}
+		.callout strong {
+			color: var(--accent2);
+			font-weight: 500;
+		}
+
+		/* ── Divider ── */
+		hr {
+			border: none;
+			border-top: 1px solid var(--border);
+			margin: 3rem 0;
+		}
+
+		/* ── Points badge ── */
+		.pts {
+			display: inline-block;
+			font-family: 'DM Mono', monospace;
+			font-size: 0.65rem;
+			letter-spacing: 0.1em;
+			color: var(--accent);
+			border: 1px solid var(--accent);
+			border-radius: 3px;
+			padding: 0.15rem 0.5rem;
+			margin-left: 0.75rem;
+			vertical-align: middle;
+			opacity: 0.7;
+		}
+
+		/* ── Links ── */
+		a { color: var(--accent); text-decoration: none; }
+		a:hover { text-decoration: underline; }
+
+		/* ── Responsive ── */
+		@media (max-width: 768px) {
+			.layout { grid-template-columns: 1fr; }
+			.sidebar { display: none; }
+			main { padding: 3rem 6vw; }
+			.hero { padding: 0 6vw 6vh; }
+			.img-grid.cols-2,
+			.img-grid.cols-3 { grid-template-columns: 1fr; }
+		}
+
+		/* ── Fade-in animation ── */
+		.part { animation: fadein 0.5s ease both; }
+		@keyframes fadein { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+	</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     HERO
+══════════════════════════════════════════════ -->
+<section class="hero">
+	<div class="hero-grid"></div>
+	<div class="hero-glow"></div>
+	<div class="hero-glow-2"></div>
+	<div class="scroll-hint">scroll</div>
+
+	<div class="hero-label">CS 184 / 284A · Spring 2025 · Homework 2</div>
+	<h1>Mesh<br/><em>Edit</em></h1>
+	<div class="hero-meta">
+		<span class="hero-name">Allena Oglivie</span>
+		<a href="https://github.com/cal-cs184-student/hw2-meshedit-the_allena_train">GitHub Repository ↗</a>
+		<a href="#">Live Webpage ↗</a>
+	</div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     BODY LAYOUT
+══════════════════════════════════════════════ -->
+<div class="layout">
+
+	<!-- Sidebar nav -->
+	<nav class="sidebar">
+		<span class="sidebar-section">Overview</span>
+		<a href="#overview">Overview</a>
+
+		<span class="sidebar-section">Section I</span>
+		<a href="#part1">Part 1 · Bezier Curves</a>
+		<a href="#part2">Part 2 · Bezier Surfaces</a>
+
+		<span class="sidebar-section">Section II</span>
+		<a href="#part3">Part 3 · Vertex Normals</a>
+		<a href="#part4">Part 4 · Edge Flip</a>
+		<a href="#part5">Part 5 · Edge Split</a>
+		<a href="#part6">Part 6 · Loop Subdivision</a>
+
+	</nav>
+
+	<!-- Main -->
+	<main>
+
+		<div id="overview" class="overview">
+			<h2>Overview</h2>
+			<p>
+				In this homework I built a mesh editor that implements two major areas of computer graphics:
+			</p>
+			<ul>
+				<li>Bezier curve and surface evaluation</li>
+				<li>Half edge mesh operations like loop subdivision</li>
+			</ul>
+			<br>
+			<p>
+				For Section I, I implemented de Casteljau's algorithm to evaluate Bezier curves in 2D and extended it to Bezier surfaces in 3D using a two-pass separable approach across u and v parameters. This is how smooth scalable curves and surfaces are represented in tools like Blender and Illustrator.
+			</p>
+			<br>
+			<p>
+				For Section II, I worked directly with the half-edge data structure to implement area-weighted vertex normals for Phong shading, edge flips, edge splits, and finally Loop subdivision for mesh upsampling. The half-edge structure was the most important thing I learned in this assignment that it is a compact but powerful way to represent mesh connectivity that makes local operations like flips and splits possible without ever losing track of neighboring elements.
+			</p>
+			<br>
+			<p>
+				The most interesting thing I learned was how much precision mesh operations require. A single wrong pointer assignment can cause holes, spikes, or crashes, and the only way to debug it is to carefully trace every closed loop by hand. Loop subdivision also taught me how mesh symmetry directly affects subdivision quality. The cube's asymmetric diagonals cause it to subdivide unevenly, and pre-processing by splitting those diagonals restores the symmetry needed for a clean rounded result.
+			</p>
+		</div>
+
+		<!-- ── Section I ── -->
+		<div class="section-label" id="section1">
+			<div class="section-header">
+				<span class="section-tag">Section I</span>
+				<span class="section-line"></span>
+			</div>
+			<h2>Bezier Curves and Surfaces</h2>
+			<p>Using de Casteljau subdivision to evaluate parametric curves and surfaces.</p>
+		</div>
+
+		<!-- Part 1 -->
+		<div class="part" id="part1">
+			<h2>Part 1 </h2>
+
+				<p>
+				De Casteljau's algorithm is a recursive method used to evaluate points on Bézier curves. If you haven't
+				worked with Bézier curves before, they are one of the most important tools in computer graphics.
+				Unlike the flat triangles we use to represent meshes, Bézier curves let us represent perfectly smooth,
+				scalable curves and surfaces, the kind you see in drawing software like Adobe Illustrator or 3D
+				modeling tools like Blender.
+					<br>
+				The big idea behind the algorithm is elegantly simple. Given a set of control points and a parameter t
+					(a value between 0 and 1 that represents "how far along" the curve you are), we repeatedly linear
+					interpolate or lerp between every pair of adjacent points using the formula:
+				</p>
+				<div class="math-block">
+					\[ p_i' = \text{lerp}(p_i, p_{i+1}, t) = (1 - t)\,p_i + t\,p_{i+1} \]
+				</div>
+
+				<p>
+					This takes n control points and produces n-1 new intermediate points.
+					We keep applying this same step to the resulting points, each time shrinking
+					the set by one, until we are left with a single point.
+					That final point is exactly where the Bezier curve lives at parameter t.
+					<br>
+					In my implementation, each call to evaluateStep performs exactly one level of this reduction.
+					It loops through the input points, applies the lerp formula to each adjacent pair, and returns the
+					new smaller set of intermediate points. The full curve is traced out by evaluating this process for
+					every value of t from 0 to 1.
+				</p>
+
+
+
+			<!-- 6-step screenshot grid — add your images here -->
+			<div class="img-grid cols-2">
+				<figure class="img-card">
+					<img src="images/part1_level0.png" alt="Step 0"/>
+					<figcaption>Level 0 — original control points</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/part1_lvl1.png" alt="Step 1"/>
+					<figcaption>Level 1</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/part1_lvl2.png" alt="Step 2"/>
+					<figcaption>Level 2</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/part1_lvl3.png" alt="Step 3"/>
+					<figcaption>Level 3</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/part1_lvl4.png" alt="Step 4"/>
+					<figcaption>Level 4</figcaption>
+				</figure>
+				<figure>
+					<img src="images/part1_lvl5.png" alt="Step 5"/>
+					<figcaption>Level 5</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/part1_curve.png" alt="Final evaluated point + curve"/>
+					<figcaption>Final point on curve (C toggled)</figcaption>
+				</figure>
+			</div>
+
+			<div class="img-grid cols-1">
+				<figure class="img-card">
+					<img src="images/part1_modified.png" alt="Modified curve"/>
+					<figcaption>Modified control points with adjusted t parameter</figcaption>
+				</figure>
+			</div>
+		</div>
+
+		<!-- Part 2 -->
+		<div class="part" id="part2">
+			<h2>Part 2 </h2>
+			<div class="part-meta">Bezier Surfaces with Separable 1D de Casteljau · Lecture 7</div>
+
+			<p>
+				In Part 1, de Casteljau's algorithm evaluated a smooth curve by repeatedly finding interpolated points
+				between adjacent control points until a single point on the curve was found. Part 2 extends this same
+				idea to surfaces by applying it in two directions instead of one.
+				<br>
+				Think of it like this, It's how I thought of it, instead of one row of control points defining a curve,
+				we now have an n x n grid.
+				First run de Casteljau across each row using parameter u, which gives us one point per row, as if we
+				are evaluating multiple curves side by side. Then we take those resulting points and run de Casteljau
+				one more time using parameter v. That final single point lies on the surface.
+				Imagine generating multiple Bézier curves side by side and then connecting them into a sheet. Depending
+				on how the control points are arranged, you get different curvatures, concave or convex, which is how
+				the teapot's complex smooth surface is produced from just a grid of control points. In my
+				implementation, evaluate1D handles fully reducing a row to a single point, and evaluate computes
+				the two-pass process across u and v.
+			</p>
+
+			<div class="img-grid cols-1">
+				<figure class="img-card">
+					<img src="images/part2_teapot.png" alt="Teapot .bez"/>
+					<figcaption>bez/teapot.bez evaluated by implementation</figcaption>
+				</figure>
+			</div>
+		</div>
+
+		<!-- ── Section II ── -->
+		<div class="section-label" id="section2">
+			<div class="section-header">
+				<span class="section-tag">Section II</span>
+				<span class="section-line"></span>
+			</div>
+			<h2>Triangle Meshes & Half-Edge Data Structure</h2>
+			<p>Local mesh operations and Loop subdivision using the half-edge data structure.</p>
+		</div>
+
+		<!-- Part 3 -->
+		<div class="part" id="part3">
+			<h2>Part 3 </h2>
+			<div class="part-meta">Area-Weighted Vertex Normals · Lecture 8</div>
+
+			<p>
+				 To compute the area-weighted vertex normal, I used the half-edge data structure to iterate through all
+				the neighboring faces of a given vertex. The key insight came from the printNeighborPositions example
+				in the half-edge primer. Since every half-edge's source is a vertex, and a triangle has three vertices,
+				I could get all three positions of a neighboring face by starting at the current half-edge and traversing
+				to its twin and next half-edges.
+				<br>
+				The half-edge structure guarantees that every face, vertex, and half-edge are all connected to each other
+				because a half-edge always starts from vertex i to vertex j, and its twin always goes from j back to i.
+				Since the spec guarantees all polygons are triangles, every face is guaranteed to be connected through
+				this chain of half-edges with no floating vertices. The only thing the data structure does not guarantee
+				is whether an edge is a boundary, which is why I explicitly check isBoundary() and skip those faces.
+				<br>
+				For each valid neighboring face I retrieved the three vertex positions p0, p1, and p2, then computed
+				cross(p1-p0, p2-p0). This is where the area weighting comes from naturally. The cross product gives
+				the area of a parallelogram formed by two vectors, and since a triangle is exactly half of a
+				parallelogram, the magnitude of the cross product is always twice the triangle's area. This means
+				larger triangles automatically produce longer cross product vectors and contribute more to the final
+				normal sum without any extra weighting calculation needed. Finally I called .unit() on the accumulated
+				sum to normalize it to a unit vector.
+			</p>
+
+			<div class="img-grid cols-2">
+				<figure class="img-card">
+					<img src="images/part3_before.png" alt="Flat shading"/>
+					<figcaption>Flat shading — default</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/part3_triSmooth.png" alt="Phong shading"/>
+					<figcaption>Phong shading — Q toggled</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/part3_smooth.png" alt="Phong shading"/>
+					<figcaption>Phong shading — Q toggled & no wireframe!</figcaption>
+				</figure>
+			</div>
+		</div>
+
+		<!-- Part 4 -->
+		<div class="part" id="part4">
+			<h2>Part 4 </h2>
+			<div class="part-meta">Edge Flip · Lecture 8</div>
+			<p>
+				To implement edge flip, the most important first step was understanding how all the elements of the half-edge data structure interact with each other when two triangles share an edge. Before writing any code, I went back to basics and drew out the two triangles with all their half-edges, twins, vertices, edges, and faces labeled using the exact variable names I would use in my implementation. Seeing the before and after states visually made it clear which connections needed to change.
+				<br>
+				The key insight is that an edge flip does not create or destroy any elements, the same vertices, edges, faces, and half-edges all still exist, only their pointers to each other change. Using setNeighbors() I reassigned the next, twin, vertex, edge, and face pointers for all six inner half-edges to reflect the new triangle configuration. Because the half-edge data structure does not update anything automatically, I also had to manually update the halfedge pointers for all four vertices, all five edges, and both faces to make sure nothing was left pointing to stale connections.
+
+			</p>
+
+			<div class="img-grid cols-2">
+				<figure class="img-card">
+					<img src="images/part4_base.png" alt="Before flips"/>
+					<figcaption>Teapot before edge flips</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/part4_flips.png" alt="After flips"/>
+					<figcaption>Teapot after edge flips, zoomed in to better see</figcaption>
+				</figure>
+			</div>
+
+			<p>
+				The biggest debugging lesson from this part was to always verify your pointer assignments by tracing the closed loops, each face's half-edges should form a cycle of exactly three next functions. Once I confirmed both triangles formed valid closed loops, the implementation worked correctly with no holes even after repeatedly flipping the same edge.</p>
+		</div>
+
+		<!-- Part 5 -->
+		<div class="part" id="part5">
+			<h2>Part 5 </h2>
+			<div class="part-meta">Edge Split · Lecture 8</div>
+
+			<p>
+				I approached Part 5 similarly to Part 4 by drawing out the before and after states with all elements labeled using my actual variable names. The key difference from edge flip is that edge split introduces entirely new mesh elements. Specifically one new vertex at the midpoint of the split edge, three new edges, two new faces, and six new half-edges. Unlike flip where you only reassign pointers, here you have to carefully manage both old and new elements together.
+				<br>
+				The most important thing to get right was maintaining the counterclockwise "flow" of half-edges around each of the four new triangles. Each face needs its three half-edges to form a valid closed loop, and when connecting new half-edges to old ones I had to make sure the direction was consistent so that subsequent edge flips on the newly created edges would still work correctly.
+				<br>
+				A key part of the implementation was correctly setting the isNew flags on edges and the new vertex. This is critical for Part 6, the loop subdivision algorithm needs to know which edges and vertices existed in the original mesh and which were created by the split. I also made sure the new vertex's halfedge points along the original split edge rather than one of the new edges, following the spec's requirement.
+			</p>
+
+			<div class="img-grid cols-2">
+				<figure class="img-card">
+					<img src="images/part5_base.png" alt="Before splits"/>
+					<figcaption>Before edge splits</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/part5_splits.png" alt="After splits"/>
+					<figcaption>After edge splits</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/part5_flips&splits.png" alt="After combo"/>
+					<figcaption>After combination of splits and flips</figcaption>
+				</figure>
+			</div>
+
+			<div class="placeholder">Describe your debugging journey (if any).</div>
+		</div>
+
+		<!-- Part 6 -->
+		<div class="part" id="part6">
+			<h2>Part 6 </h2>
+			<div class="part-meta">Loop Subdivision for Mesh Upsampling · Lecture 8</div>
+
+			<p>
+				Sharp corners and edges on the cube become progressively smoother with each subdivision level. Each iteration creates more triangles and introduces new vertices, which effectively "files down" the sharp edges.
+				<br>
+				Subdivisioning through the upsample function is evenly redistributing geometry across more planes. After several subdivisions, what was once a hard 90-degree corner becomes a soft, rounded curve as the increased vertex density pulls the shape toward an oval form. Imagine putting a piece of paper, firm so it can hold its shape, and perpendicular to a table corner, but do that repeatedly. That's a lot of paper but each paper is a triangle plane, the corner gets smoother.
+				<br>
+				The cube subdivides asymmetrically without pre-processing because each face of the original cube mesh has a single diagonal edge cutting across it, and all these diagonals run in the same direction. This means the mesh has no rotational symmetry! When Loop subdivision computes new vertex positions using neighbor averages, vertices on one side of each diagonal have a different connectivity than vertices on the other side, causing the shape to lean and distort unevenly.
+				<br>
+				Pre-splitting the diagonal edge on each face before subdividing creates an X pattern on every face. Making this X gives each face two triangles that mirror each other. This restores the mesh's symmetry so that every vertex has equivalent connectivity to its neighbors. When Loop subdivision runs on this pre-processed mesh, the neighbor-weighted averaging is applied uniformly across all faces, producing a symmetric rounded result! Symmetry with faces is really depends on mirror another face.
+			</p>
+
+			<div class="callout">
+				<strong>New vertex position:</strong> &nbsp;\( \frac{3}{8}(A + B) + \frac{1}{8}(C + D) \)<br/>
+				<strong>Old vertex update:</strong> &nbsp;\( (1 - nu)\,\text{orig} + u\,\text{neighbor\_sum} \)
+			</div>
+
+			<div class="img-grid cols-3">
+				<figure class="img-card">
+					<img src="images/cube.png" alt="Cube level 0"/>
+					<figcaption>Cube — level 0</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/cube1L.png" alt="Cube level 1"/>
+					<figcaption>Cube — level 1</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/cube2L.png" alt="Cube level 2"/>
+					<figcaption>Cube — level 2</figcaption>
+				</figure>
+			</div>
+
+			<div class="img-grid cols-3">
+				<figure class="img-card">
+					<img src="images/part6_symm0.png" alt="Cube pre-split"/>
+					<figcaption>Cube — pre-processed (diagonals split)</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/part6_symm1.png" alt="Cube pre-split level 1"/>
+					<figcaption>Cube pre-processed — level 1 (symmetric)</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/part6_symm2.png" alt="Cube pre-split level 2"/>
+					<figcaption>Cube pre-processed — level 2 (symmetric)</figcaption>
+				</figure>
+			</div>
+		</div>
+
+	</main>
+</div>
+
+<!-- Active nav highlight -->
+<script>
+	const links = document.querySelectorAll('.sidebar a');
+	const observer = new IntersectionObserver(entries => {
+		entries.forEach(e => {
+			if (e.isIntersecting) {
+				links.forEach(l => l.classList.remove('active'));
+				const active = document.querySelector(`.sidebar a[href="#${e.target.id}"]`);
+				if (active) active.classList.add('active');
+			}
+		});
+	}, { threshold: 0.3 });
+
+	document.querySelectorAll('.part, .overview, .section-label').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>
