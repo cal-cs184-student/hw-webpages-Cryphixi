@@ -1,106 +1,916 @@
-<html>
-	<head>
-		<script src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=default'></script>
-		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-		<style>
-			h1 {
-				text-align: center;
-			}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CS184 · Homework 3 · PathTracer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=default"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
 
-			.container {
-				margin: 0 auto;
-				padding: 60px 20%;
-			}
+  <style>
+    :root {
+      --bg:        #0d0f14;
+      --surface:   #13161d;
+      --surface2:  #1a1e28;
+      --border:    #252a38;
+      --accent:    #5b8cff;
+      --accent2:   #a78bfa;
+      --text:      #e2e6f0;
+      --muted:     #7a829a;
+      --heading:   #ffffff;
+      --tag-bg:    #1e2436;
+    }
 
-			figure {
-				text-align: center;
-			}
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
 
-			img {
-				display: inline-block;
-			}
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+      line-height: 1.75;
+      font-size: 16px;
+    }
 
-			body {
-				font-family: 'Inter', sans-serif;
-			}
-		</style>
-	</head>
-	<body>
-		<div class="container">
-		<h1>CS184/284A Spring 2025 Homework 3 Write-Up</h1>
-		<div style="text-align: center;">Names: </div>
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 0; opacity: 0.45;
+    }
 
-		<br>
+    /* ── Hero ── */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex; flex-direction: column; justify-content: flex-end;
+      padding: 0 8vw 6vh;
+      overflow: hidden;
+    }
 
-		Link to webpage: (TODO) <a href="https://cs184.eecs.berkeley.edu/sp25">cs184.eecs.berkeley.edu/sp25</a>
-		Link to GitHub repository: (TODO) <a href="https://cs184.eecs.berkeley.edu/sp25">cs184.eecs.berkeley.edu/sp25</a>
-		
-		<figure>
-			<img src="cornell.png" alt="Cornell Boxes with Bunnies" style="width:70%"/>
-			<figcaption>You can add images with captions!</figcaption>
-		</figure>
+    .hero-grid {
+      position: absolute; inset: 0;
+      background-image:
+              linear-gradient(var(--border) 1px, transparent 1px),
+              linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 60px 60px;
+      mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
+      opacity: 0.35;
+    }
 
-		<!--
-		We've already added one heading per part, to make your write-up as navigable when grading. Please fit your write-up within these sections!
-		-->
+    .hero-canvas {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.7;
+    }
 
-		<h2>Overview</h2>
-		Give a high-level overview of what you implemented in this homework. Think about what you've built as a whole. Share your thoughts on what interesting things you've learned from completing the homework.
+    .hero-glow {
+      position: absolute;
+      width: 700px; height: 700px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(91,140,255,0.12) 0%, transparent 70%);
+      top: -200px; right: -100px;
+      pointer-events: none;
+    }
 
-		<h2>Part 1: Ray Generation and Scene Intersection</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+    .hero-glow-2 {
+      position: absolute;
+      width: 500px; height: 500px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(167,139,250,0.08) 0%, transparent 70%);
+      bottom: -100px; left: 10%;
+      pointer-events: none;
+    }
 
-		<p>Here is an example 2x2 gridlike structure using an HTML table. Each <b>tr</b> is a row and each <b>td</b> is a column in that row. You might find this useful for framing and showing your result images in an organized fashion.</p>
-		<div style="display: flex; flex-direction: column; align-items: center;">
-			<table style="width: 100%; text-align: center; border-collapse: collapse;">
-			  <tr>
-				<td style="text-align: center;">
-				  <img src="cornell.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
-				</td>
-				<td style="text-align: center;">
-				  <img src="cornell.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
-				</td>
-			  </tr>
-			  <tr>
-				<td style="text-align: center;">
-				  <img src="cornell.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
-				</td>
-				<td style="text-align: center;">
-				  <img src="cornell.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
-				</td>
-			  </tr>
-			</table>
-		</div>
-		
-		<h2>Part 2: Bounding Volume Hierarchy</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+    .hero-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 1.2rem;
+      position: relative; z-index: 1;
+    }
 
-		<h2>Part 3: Direct Illumination</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+    .hero h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(3rem, 7vw, 6.5rem);
+      font-weight: 700;
+      line-height: 1.05;
+      color: var(--heading);
+      position: relative; z-index: 1;
+      max-width: 900px;
+    }
 
-		<h2>Part 4: Global Illumination</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+    .hero h1 em {
+      font-style: italic;
+      color: var(--accent2);
+    }
 
-		<h2>Part 5: Adaptive Sampling</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+    .hero-meta {
+      margin-top: 2.5rem;
+      display: flex; gap: 2.5rem; flex-wrap: wrap; align-items: center;
+      position: relative; z-index: 1;
+    }
 
-		<h2>(Optional) Part 6: Extra Credit Opportunities</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-		
-		<h2>Additional Notes (please remove)</h2>
-		<ul>
-			<li>You can also add code if you'd like as so: <code>code code code</code></li>
-			<li>If you'd like to add math equations, 
-				<ul>
-					<li>You can write inline equations like so: \( a^2 + b^2 = c^2 \)</li>
-					<li>You can write display equations like so: \[ a^2 + b^2 = c^2 \]</li>
-				</ul>
-			</li>
-		</ul>
-		</div>
-	</body>
+    .hero-meta a {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-decoration: none;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 2px;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .hero-meta a:hover { color: var(--accent); border-color: var(--accent); }
+
+    .hero-name {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+    }
+
+    .scroll-hint {
+      position: absolute; bottom: 2.5rem; left: 50%; transform: translateX(-50%);
+      z-index: 1;
+      display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      animation: float 2.5s ease-in-out infinite;
+    }
+    .scroll-hint::after {
+      content: '';
+      width: 1px; height: 40px;
+      background: linear-gradient(to bottom, var(--muted), transparent);
+    }
+    @keyframes float {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50%       { transform: translateX(-50%) translateY(6px); }
+    }
+
+    /* ── Layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      min-height: 100vh;
+      position: relative; z-index: 1;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      position: sticky; top: 0; height: 100vh;
+      padding: 3rem 1.5rem 3rem 8vw;
+      display: flex; flex-direction: column; gap: 0.25rem;
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+    }
+
+    .sidebar-section {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 1.2rem 0 0.4rem;
+    }
+    .sidebar-section:first-child { margin-top: 0; }
+
+    .sidebar a {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 300;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 0.3rem 0.6rem;
+      border-radius: 4px;
+      transition: color 0.2s, background 0.2s;
+      display: block;
+    }
+    .sidebar a:hover { color: var(--text); background: var(--surface2); }
+    .sidebar a.active { color: var(--accent); background: rgba(255,124,91,0.08); }
+
+    /* ── Main content ── */
+    main {
+      padding: 5rem 8vw 8rem 5vw;
+      max-width: 900px;
+    }
+
+    .overview {
+      margin-bottom: 5rem;
+      padding-bottom: 3rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .overview h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--heading);
+      margin-bottom: 1rem;
+    }
+
+    .tag-row {
+      display: flex; flex-wrap: wrap; gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .tag {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      background: var(--tag-bg);
+      color: var(--accent);
+      border: 1px solid rgba(255,124,91,0.2);
+      border-radius: 3px;
+      padding: 0.25rem 0.6rem;
+    }
+
+    .tag.amber {
+      color: var(--accent2);
+      border-color: rgba(255,213,128,0.2);
+    }
+
+    /* ── Part sections ── */
+    .part {
+      margin-bottom: 5rem;
+      padding-bottom: 3rem;
+      border-bottom: 1px solid var(--border);
+      scroll-margin-top: 2rem;
+    }
+
+    .part:last-child { border-bottom: none; }
+
+    .part h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.9rem;
+      font-weight: 700;
+      color: var(--heading);
+      margin-bottom: 0.4rem;
+    }
+
+    .part-meta {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 1.8rem;
+    }
+
+    .part p {
+      color: var(--text);
+      margin-bottom: 1.2rem;
+    }
+
+    .part h3 {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--heading);
+      margin: 2rem 0 0.6rem;
+    }
+
+    /* ── Placeholder ── */
+    .placeholder {
+      border: 1px dashed var(--border);
+      border-radius: 6px;
+      padding: 1.5rem;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.8rem;
+      font-style: italic;
+      margin: 1.2rem 0;
+      background: var(--surface);
+    }
+
+    .placeholder.img {
+      min-height: 200px;
+      display: flex; align-items: center; justify-content: center;
+      text-align: center;
+    }
+
+    /* ── Image grids ── */
+    .img-grid {
+      display: grid;
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+    .img-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+    .img-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+    .img-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+    .img-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .img-card img {
+      width: 100%; display: block;
+      aspect-ratio: 4/3; object-fit: cover;
+    }
+    .img-card figcaption {
+      padding: 0.5rem 0.75rem;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.68rem;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Callout ── */
+    .callout {
+      background: var(--surface);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 6px 6px 0;
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      font-size: 0.9rem;
+      color: var(--text);
+    }
+
+    .callout.amber { border-color: var(--accent2); }
+
+    /* ── Code ── */
+    code {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.82em;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.1em 0.35em;
+      color: var(--accent2);
+    }
+
+    /* ── Section label ── */
+    .section-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 3rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <canvas class="hero-canvas" id="whirlpool"></canvas>
+  <div class="hero-glow"></div>
+  <div class="hero-glow-2"></div>
+
+  <div class="hero-label">CS 184 / 284A · Spring 2026</div>
+  <h1>Path<em>Tracer</em></h1>
+
+  <div class="hero-meta">
+    <span class="hero-name"> Allena Oglivie · UC Berkeley</span>
+    <a href="https://cs184.eecs.berkeley.edu" target="_blank">Course Site ↗</a>
+    <a href ="https://github.com/cal-cs184-student/hw3-pathtracer-_allena_train3-0" target="_blank"> Github Repository ↗</a>
+    <a href="#overview">Jump to Writeup ↓</a>
+  </div>
+
+  <div class="scroll-hint">scroll</div>
+</section>
+
+<!-- Main layout -->
+<div class="layout">
+
+  <!-- Sidebar nav -->
+  <nav class="sidebar">
+    <div class="sidebar-section">Overview</div>
+    <a href="#overview">Project Summary</a>
+
+    <div class="sidebar-section">Part 1</div>
+    <a href="#part1">Ray Generation</a>
+    <a href="#part1-triangle">Triangle Intersection</a>
+    <a href="#part1-sphere">Sphere Intersection</a>
+
+    <div class="sidebar-section">Part 2</div>
+    <a href="#part2">BVH Construction</a>
+    <a href="#part2-traversal">BVH Traversal</a>
+
+    <div class="sidebar-section">Part 3</div>
+    <a href="#part3-hemisphere">Hemisphere Sampling</a>
+    <a href="#part3-importance">Importance Sampling</a>
+
+    <div class="sidebar-section">Part 4</div>
+    <a href="#part4-global">Global Illumination</a>
+    <a href="#part4-rr">Russian Roulette</a>
+    <a href="#part4-accum">Accumulation</a>
+
+    <div class="sidebar-section">Part 5</div>
+    <a href="#part5">Adaptive Sampling</a>
+  </nav>
+
+  <!-- Content -->
+  <main>
+
+    <!-- Overview -->
+    <div class="overview" id="overview">
+      <div class="section-label">Homework 3 · PathTracer</div>
+      <h2>Project Overview</h2>
+      <div class="tag-row">
+        <span class="tag">Ray Tracing</span>
+        <span class="tag">BVH Acceleration</span>
+        <span class="tag">Direct Illumination</span>
+        <span class="tag amber">Global Illumination</span>
+        <span class="tag amber">Monte Carlo</span>
+        <span class="tag">Adaptive Sampling</span>
+      </div>
+      <div class="placeholder">
+        This project implements a physically-based path tracer that simulates light transport to produce photorealistic images! Starting from raw ray generation through a virtual camera, the system builds up to full global illumination with multiple light bounces, color bleeding, and adaptive sampling. The most interesting challenge was understanding the importance of reversing the direction of ray tracing, shooting from the camera rather than the light, produces computationally efficient results.
+      </div>
+    </div>
+
+    <!-- Part 1 -->
+    <div class="part" id="part1">
+      <h2>Part 1</h2>
+      <div class="part-meta">Ray Generation &amp; Scene Intersection · Tasks 1–4</div>
+
+      <h3>Ray Generation Pipeline</h3>
+      <h4>Conceptual Journey</h4>
+      <p>
+        Part 1 starts at the base of the rendering world, the three coordinates of x,y,z. Throughout the tasks of part 1, a key concept is to understand how the image space, a normalized 0-1, camera space, the sensor place at Z = -1, and the world space interacts with each other to generate rays. Furthermore, recognizing the transformation as linear range remapping problem, similar to scaling in architecture and blueprints!
+      </p>
+      <p>
+        Initially tried simple multiplication of the normalized coordinates with the tan values, but quickly realized that would return zero since a - a = 0 and 0 * any value = 0. The breakthrough came when recognizing it as the standard linear remap, the architecture example I mentioned before. The formula from lecture slides
+        <im> a + t * (b - a)</im>.
+      </p>
+      <p>
+        Throughout part 1, I kept mixing up hFov and vFov between the sx and sy formula. I had to work through debugging methodically, like checking where I messed up in a long math problem, by going back to the sensor corner defintions in the spec. Also, had to remember degrees to radians conversion! For world space, initially thought both origin and direction needed the c2w matrix applied, but then realized the origin is just post since it's already stored in world space and it's a normalized vector.
+      </p>
+
+      <h3 id="part1-triangle"> Task 1 - generate _ray</h3>
+      <p>
+        Here is how I implemented the algorithm for the generate_ray function. First, one has to understand the layout of the world. The corners are at <b>(-tan(hFov/2), -tan(vFov/2), -1) and (tan(hFov/2), tan(vFov/2), -1)</b>. The key mapping uses the linear range formula <b> a + t * (b-a) </b> where t is the the normalized image coordinate, a is the left or bottom edge sensor, and b is the right or top edge. hFov dictates the horizontal axis only, hence the h standing for horizontal. vFov dictates the vertical axis. Mixing them up produces a lot of bugs and wrong results! After computing the sensor point <b>(sx, sy, -1)</b> in camera space, the origin of the world space ray is just pos! Pos is already the world space given through starter code, and the direction is product of c2w with sensor_point variable. I made sure to normalize the direction to keep each vector uniform. A key debug moment was discovering PART was set to part 5 in ray.h from the starter code, which needed resetting to 1. Also, the Ray default constructor doesn't initialize inv_d. To fix it use the Ray(o,d) constructor.
+      </p>
+
+      <h3 id="part1-sphere">Task 2 - raytrace_pixel</h3>
+      <p>
+        The goal is Monte Carlo estimation!<b> The average of ns_aa radiance samples per pixel</b>. The gridSampler gives a random offset within the pixel, added to the integer pixel coordinates before normalizing by image dimensions: <b>(x + sample.x) / sampleBuffer.w</b>. Had an operator precedence bug! I at first wrote <br/> x + sample.x / sampleBuffer.w instead of (x + sample.x) / sampleBuffer.w. <br/> The most frustrating bug was the solid cyan output persisting even after correct code was written! After extensive print debugging showing sx and sy were varying correctly, finally discovered the leftover starter code sampleBuffer.update_pixel(Vector3D(0.2, 1.0, 0.8), x, y) was overwriting every pixel with hardcoded cyan after the real computation.
+      </p>
+      <h3> Task 3 - Triangle Intersection (Moller-Trumbore) </h3>
+      <p>
+        Used the Möller–Trumbore algorithm. The three validity conditions are b1 >= 0, b2 >= 0, b1 + b2 <= 1, plus t within [min_t, max_t]. The third barycentric condition b1 + b2 <= 1 wasn't immediately obvious to me at first, but makes sense geometrically. All three weights must sum to 1, so if the first two exceed 1 the third would be negative, placing the point outside the triangle. The interpolated normal uses barycentric coordinates as weights: b0 * n1 + b1 * n2 + b2 * n3. Had a syntax issue with normalize(), the CGL library uses .unit() instead.
+      </p>
+
+      <h3> Task 4 - Sphere Intersection </h3>
+      <p>
+        Used the quadratic formula by substituting the ray equation into the sphere equation to get coefficients a, b, c. The discriminant determines whether there are 0, 1, or 2 intersection points. The closer intersection t1 is tried first, falling back to t2 if t1 is out of range. The normal is simpler than triangles, just the normalized vector from sphere center to hit point. I messed up understanding a name collision between the Ray parameter r and the sphere's radius member variable r. The variable names mixed me up. I solved it with this->r. The CGL function r.at_time(t) computes r.o + t * r.d conveniently.
+      </p>
+      <h3>Normal Shading Results</h3>
+      <div class="img-grid cols-2">
+        <figure class="img-card">
+          <img src = "images/CBempty.png" alt="CBempty normal shading" />
+          <figcaption>CBempty.dae — normal shading</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/CBspheres_lambertian_screenshot_4-1_22-52-12.png" alt="lambertian normal shading"/>
+          <figcaption>CBspheres_lambertian.dae — normal shading</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src = "images/banana.png" alt="banana normal shading, rendered after part 5"/>
+          <figcaption>Additional small .dae scene</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <!-- Part 2 -->
+    <div class="part" id="part2">
+      <h2>Part 2</h2>
+      <div class="part-meta">Bounding Volume Hierarchy · Tasks 1–3</div>
+      <h3> Initial Conceptual Confusion</h3>
+      <p>
+        I started with a shaky mental model of what BVH actually was! Initially thought of it as "a list of primitives in a bounding box" without understanding the hierarchical splitting. The breakthrough came from the analogy of having 1000 triangles I could touch in a room. Instead of checking every triangle, you put a big box around everything, split it in half, keep splitting until each box has only a few triangles. Going back to ray generation, the rays skip huge chunks of geometry by testing boxes first. Once the tree analogy clicked, I also realized its similarity to a binary search tree but for 3D spaces, the recursive structure made sense naturally.
+      </p>
+
+      <h3>BVH Construction - construct_bvh</h3>
+      <p>
+        Building from understanding, here is my implementation for construct_bvh, a recursive binary tree construction. The base case is if primitives <= max_leaf_size, return a leaf node. Otherwise, find the longest axis of the bounding box using bbox.extent, sort primitives by their centroid along that axis using std::sort with a lambda, split at the midpoint, and recursively build left and right children. My algorithm takes my visualization of drawing boxes around triangles to splitting along the longest axis of the bounding box. A bug I was debugging for a while was initially passed end instead of mid to the left child, causing infinite recursion. Also, initially tried start/2 to find the midpoint, you can't divide iterators, must use start + std::distance(start, end)/2.
+      </p>
+      <h4> BBox::intersect — Slab Method </h4>
+      <p>
+        Initially mixed up r.min_t/r.max_t (the ray's valid range) with the slab t values (the intersection times with each plane pair). The slab method computes entry/exit t values per axis using the bbox corners and r.inv_d, swaps them if needed, then takes the max of entries and min of exits. Had issues with std::max/std::min being ambiguous between CGL Vector3D versions and std versions. I fixed this by explicitly using std::max and std::min. Also had variable naming confusion, naming mmax as the max of the mins and cleaned up by renaming to t0 and t1.
+      </p>
+
+      <h3 id="part2-traversal">BVH Traversal &amp; Bounding Box Intersection</h3>
+      <p>
+        For has_intersection, I initially kept the starter code loop that iterated over ALL primitives which completely defeated the purpose of BVH and was still O(n). My new traversal checks the bounding box first, remember the boxes around the triangles, then either tests leaf primitives or recurses. For intersect, was at first confused about how to find the closest hit. I expected to need explicit distance math comparing children. However, I realized that r.max_t automatically shrinks every time a primitive intersection is found, so any future primitive or bbox that's farther away automatically fails the validity check.
+      </p>
+
+      <h3>Large Scene Renders (BVH only)</h3>
+      <div class="img-grid cols-2">
+        <figure class="img-card">
+          <img src="images/cowMesh.png" alt = "cowMesh, editted to zoom in" />
+          <figcaption>cow.dae — rendered with BVH</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/cowBVH.png" alt = "cowMesh with BVH highlighted" />
+          <figcaption>Large mesh — only possible with BVH</figcaption>
+        </figure>
+      </div>
+
+      <div class="callout">
+        <strong> Result: cow.dae dropped from ~60 seconds to 0.24 seconds, roughly 250x, estimate, speedup confirming O(log n) traversal. </strong>
+      </div>
+    </div>
+
+    <!-- Part 3 -->
+    <div class="part" id="part3-hemisphere">
+      <h2>Part 3</h2>
+      <div class="part-meta">Direct Illumination · Tasks 1–4</div>
+
+      <h3> Conceptual Journey</h3>
+      <p>
+        The "reverse ray tracing" concept felt counterintuitive at first. The instinct was "why not shoot rays from the light source toward the camera?" The realization that clicked was efficiency importance! If you shoot from the light, the vast majority of rays miss the camera entirely. By shooting backward from the camera, every ray is guaranteed to contribute to a pixel. The math works out the same since light transport is reversible. And this is why varied shadows work. Different points on the surface have different probabilities of "seeing" the light depending on geometry, distance, and occlusion.
+      </p>
+      <h3>Zero-bounce Radiance</h3>
+      <p>
+        Zero bounce means light that reaches the camera directly from the light source without any bounces. The function simply returns isect.bsdf->get_emission(), one line! This is what makes the light rectangle on the ceiling visible while everything else remains black.
+      </p>
+      <h3>Hemisphere Sampling</h3>
+      <p>
+        Hemisphere sampling estimates direct lighting by randomly sampling directions in a hemisphere around the hit point, then checking if those directions lead to a light source. My algorithm implementation:
+        <br/>
+        For each sample: get wInObjectSpace from hemisphereSampler, cosTheta = wInObjectSpace.z (since the normal is always (0,0,1) in object space), convert to world space with o2w, cast a new ray from hit_p with min_t = EPS_F to avoid self-intersection. If the ray hits something, get its emission and accumulate using the reflection equation: f(w_out, wInObjectSpace) * emission * cosTheta / pdf. PDF for uniform hemisphere = 1/(2*PI). Average over all samples at the end.
+      </p>
+      <p>
+        <b>Debugging</b>
+        <br/>
+          First render came out completely white! All three issues in combination: cosTheta was computed incorrectly, one_bounce_radiance had both branches calling importance sampling instead of one calling hemisphere, and estimate_direct_lighting_importance was returning Vector3D(1.0) from starter code instead of black.
+      </p>
+
+      <h3 id="part3-importance">Importance Sampling</h3>
+      <p>
+        Instead of random hemisphere directions, importance sampling goes directly to each light source. For my implementation: <br/>
+        each light, determine num_samples (1 for point lights, ns_area_light for area lights). Call sample_L to get emission, world-space direction wi, distToLight, and pdf. Convert wi to object space for cosTheta. If cosTheta <= 0, the light is behind the surface → skip. Cast a shadow ray from hit_p toward the light with max_t = distToLight - EPS_F. If has_intersection returns false, nothing is blocking, so accumulate: f(w_out, wiObjectSpace) * lightDir * cosTheta / pdf. Divide each light's contribution by num_samples.
+      </p>
+      <p>
+        <b>Debugging</b>
+        <br/>
+        Accumulated directly into L_out inside the inner loop instead of a per-light light_total accumulator, meaning the division by num_samples at the end was wrong. Fixed by introducing light_total per light and only adding light_total / num_samples to L_out after the inner loop.
+      </p>
+
+      <h3>Both Implementations Compared</h3>
+      <div class="img-grid cols-2">
+        <figure class="img-card">
+          <img src="images/CBbunny_H_64_32.png" alt ="hemisphere bunny"/>
+          <figcaption>Hemisphere sampling — 64 spp, 32 light samples</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_64_32.png" alt = "importance sampling"/>
+          <figcaption>Importance sampling — 64 spp, 32 light samples</figcaption>
+        </figure>
+      </div>
+
+      <h3>Noise Comparison — Varying Light Rays (Importance Sampling, s=1)</h3>
+      <div class="img-grid cols-4">
+        <figure class="img-card">
+          <img src="images/bunny_l1.png" alt = "l = 1"/>
+          <figcaption>l = 1</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_l4.png" alt = "l = 4">
+          <figcaption>l = 4</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_l16.png" alt = "l = 16">
+          <figcaption>l = 16</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_l64.png" alt = "l = 64">
+          <figcaption>l = 64</figcaption>
+        </figure>
+      </div>
+
+      <p>
+        Uniform hemisphere sampling and light importance sampling both estimate the same integral, how much direct light reaches a surface point, but differ fundamentally in where they draw samples from. Hemisphere sampling draws uniformly from all directions, meaning most samples contribute zero radiance since they miss all light sources entirely. This wastes computation and requires many samples to converge. Importance sampling targets lights directly, guaranteeing every sample either contributes light or reveals a shadow. The result is dramatically less noise at equivalent sample counts. The tradeoff is that hemisphere sampling can capture any light source including indirect lighting by accident, while importance sampling only captures direct lighting from known sources. For direct illumination specifically, importance sampling is strictly superior.
+      </p>
+    </div>
+
+    <!-- Part 4 -->
+    <div class="part" id="part4-global">
+      <h2>Part 4</h2>
+      <div class="part-meta">Global Illumination · Tasks 1–3</div>
+      <h3>Initial Perception and Confusion</h3>
+      <p>
+        Coming into Part 4, my first reaction was "didn't we already do this in Part 3"? The bunny render looked fully illuminated with proper shadows, so what could global illumination possibly add? I had to change my perspective and reconsider thinking about the red and blue walls in the Cornell Box. In Part 3, the bunny is perfectly gray even when sitting right next to the red wall. In reality, the red wall would bounce red light onto nearby surfaces, giving them a reddish tint! This is color bleeding. Direct lighting alone can't produce this because it only considers light that travels directly from the source to the surface in one step.
+      </p>
+      <h3>Real World Example That Clicked</h3>
+      <p>
+        Think of being in a room painted entirely red. Even if the light source is white, everything appears reddish because light bounces off the red walls and tints everything it subsequently hits. This is fundamentally different from light passing through objects. I initially confused color bleeding with light transmittance, like when light passing through skin giving it a warm glow. The distinction is important because transmittance requires a completely different BSDF and is not implemented here. What we are simulating is purely reflective bouncing. The light hits a surface, some is absorbed, the rest bounces in a new direction according to the BSDF.
+      </p>
+      <h3>Why Global Illumination is Needed</h3>
+      <p>
+        Direct lighting misses several real world phenomena. Shadows in direct lighting are completely black, in reality indirect light partially fills them in, making soft shadow gradients. Surfaces not directly visible from any light source appear completely black in direct lighting but in reality receive indirect bounced light. Color bleeding from colored surfaces onto neighboring objects is entirely absent without multiple bounces. The ceiling of the Cornell Box is a perfect example. In direct lighting it's completely black except the light rectangle, but in reality light bouncing off the floor and walls illuminates it slightly. Shadows still exist! They're just softer because indirect light fills them in partially.
+      </p>
+
+      <h3>Indirect Lighting Implementation - at_least_one_bounce_radiance</h3>
+      <p>
+        The core function is recursive. It first computes one direct bounce using one_bounce_radiance (when isAccumBounces is true or at the first call depth), then samples a new direction using sample_f which returns the BSDF value and sets wi and pdf. A new ray is cast from hit_p in that direction. If it hits something, the function calls itself recursively on that new intersection, accumulating the indirect contribution scaled by surfacef * cosTheta / pdf. The depth tracking initializes camera rays in raytrace_pixel with pixelRay.depth = max_ray_depth. Each recursive call decrements depth by 1.
+      </p>
+
+      <h3 id="part4-rr">Russian Roulette</h3>
+      <p>
+        Adds random termination with probability 0.38, a number between 0.3 and 0.4 to make sure there is a high chance it won't immediately terminate. The spec requires always tracing at least one indirect bounce when r.depth == max_ray_depth. Russian Roulette only applies to subsequent bounces. The continuation probability 0.62 = 1 - 0.38 is used to divide the surviving paths' contributions, keeping the expected value correct while allowing variable path lengths. coin_flip(p) returns true meaning TERMINATE with probability p, so lower p means more bounces, higher p means fewer.
+      </p>
+
+      <h3>isAccumBounces Debugging</h3>
+      <p>
+        The isAccumBounces implementation caused significant debugging difficulty. Initial attempt used !isAccumBounces (wrong negation) which inverted the entire logic. Then an infinite recursion segfault (exit code 139) occurred when at_least_one_bounce_radiance was accidentally called with the same ray r instead of one_bounce_radiance. The depth comparison r.depth == max_ray_depth had a subtle edge case at m=0 where both sides equal 0, causing one_bounce to incorrectly trigger. Fixed by changing the condition to check r.depth == 1 for the unaccumulated case. The zero_bounce visibility issue for unaccumulated m=0 required a separate fix in est_radiance_global_illumination. Zero bounce must always be added when max_ray_depth == 0 regardless of isAccumBounces. Also needed a hard guard at the very top of at_least_one_bounce_radiance: if r.depth == 0 return L_out immediately.
+      </p>
+      <h3>Unaccumulated vs Accumulated </h3>
+      <p>
+        Unaccumulated renders show only the contribution from that specific bounce depth. m=0 shows only the light source, m=1 shows only direct lighting with no light source visible, m=2 shows only the second indirect bounce which is dim with slight color tinting, getting progressively dimmer with each additional m. Accumulated renders progressively add each bounce's contribution, growing brighter and more colorful with each additional m value as indirect illumination fills in shadows and color bleeding accumulates.
+      </p>
+
+      <h3>Global vs Direct Illumination</h3>
+      <div class="img-grid cols-2">
+        <figure class="img-card">
+          <img src="images/spheres_direct.png" alt ="spheres"/>
+          <figcaption>Direct illumination only</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/spheres_global.png" alt ="spheres"/>
+          <figcaption>Full global illumination</figcaption>
+        </figure>
+      </div>
+
+      <h3 id="part4-accum">Unaccumulated Bounces — CBbunny.dae</h3>
+
+      <div class="img-grid cols-3">
+        <figure class="img-card">
+          <img src="images/bunny_unaccum_m0.png" alt ="bunny unaccum"/>
+          <figcaption>Unaccumulated m=0</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_unaccum_m1.png" alt ="bunny unaccum"/>
+          <figcaption>Unaccumulated m=1</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_unaccum_m2.png" alt ="bunny unaccum"/>
+          <figcaption>Unaccumulated m=2</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_unaccum_m3.png" alt ="bunny unaccum"/>
+          <figcaption>Unaccumulated m=3</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_unaccum_m4.png" alt ="bunny unaccum"/>
+          <figcaption>Unaccumulated m=4</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_unaccum_m5.png" alt ="bunny unaccum"/>
+          <figcaption>Unaccumulated m=5</figcaption>
+        </figure>
+      </div>
+
+      <h3>Accumulated Bounces — CBbunny.dae</h3>
+      <div class="img-grid cols-3">
+        <figure class="img-card">
+          <img src="images/bunny_accum_m0.png" alt ="bunny accum"/>
+          <figcaption>Accumulated m=0</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_accum_m1.png" alt ="bunny accum"/>
+          <figcaption>Accumulated m=1</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_accum_m2.png" alt ="bunny accum"/>
+          <figcaption>Accumulated m=2</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_accum_m3.png" alt ="bunny accum"/>
+          <figcaption>Accumulated m=3</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_accum_m4.png" alt ="bunny accum"/>
+          <figcaption>Accumulated m=4</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_accum_m5.png" alt ="bunny accum"/>
+          <figcaption>Accumulated m=5</figcaption>
+        </figure>
+      </div>
+
+      <h3>Russian Roulette — CBbunny.dae</h3>
+      <div class="img-grid cols-3">
+        <figure class="img-card">
+          <img src="images/bunny_rr0.png" alt ="bunny rr"/>
+          <figcaption>Russian Roulette m=0</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_rr1.png" alt ="bunny rr"/>          <figcaption>Russian Roulette m=1</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_rr2.png" alt ="bunny rr"/>          <figcaption>Russian Roulette m=2</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_rr3.png" alt ="bunny rr"/>          <figcaption>Russian Roulette m=3</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_rr4.png" alt ="bunny rr"/>          <figcaption>Russian Roulette m=4</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_rr100.png" alt ="bunny rr"/>          <figcaption>Russian Roulette m=100</figcaption>
+        </figure>
+      </div>
+
+      <h3>Sample Rate Comparison</h3>
+      <div class="img-grid cols-2">
+        <figure class="img-card">
+          <img src="images/spheres_s1.png" alt ="sphere sample rate 1"/>
+          <figcaption>1 sample per pixel</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/spheres_s2.png" alt ="sphere sample rate 2"/>
+          <figcaption>2 samples per pixel</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/spheres_s4.png" alt ="sphere sample rate 4"/>
+          <figcaption>4 samples per pixel</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/spheres_s8.png" alt ="sphere sample rate 8"/>
+          <figcaption>8 samples per pixel</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/spheres_s16.png" alt ="sphere sample rate 16"/>
+          <figcaption>16 samples per pixel</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/spheres_s64.png" alt ="sphere sample rate 64"/>
+          <figcaption>64 samples per pixel</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/spheres_s1024.png" alt ="sphere sample rate 1024"/>
+          <figcaption>1024 samples per pixel</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <!-- Part 5 -->
+    <div class="part" id="part5">
+      <h2>Part 5</h2>
+      <div class="part-meta">Adaptive Sampling · raytrace_pixel</div>
+
+      <h3>Algorithm Explanation - The Baker Analogy</h3>
+      <p>
+        To help me understand adaptive sampling, I had to compare it to something I know well, baking. When baking a cake or cupcakes, the last step and most important for presentation is frosting. Frosting is a time-consuming task, and it depends on the baker on where they want to save time when frosting. If the surface is perfectly smooth and flat, I can frost it in one quick confident sweep, no need to spend extra time going over it again. But if the surface has deep grooves, sharp corners, and complex textures, I have to slow down and spend much more careful time on those sections to get even coverage. Spending the same amount of time on both sections would be wasteful, the smooth section is already done perfectly after one pass while the complex section still needs work.
+        <br/>
+        Adaptive sampling works exactly the same way. Simple regions like flat walls and backgrounds converge quickly, a few samples gives a stable noise-free estimate. Complex regions like shadow boundaries and the bunny's fur need many more samples to converge. Instead of wasting 2048 samples on an already-converged flat wall pixel, adaptive sampling might stop at 64 and redirect that computation to harder pixels. The rate image above makes this visible. Blue pixels are the "smooth flat surfaces" that needed few samples, red pixels are the "complex textured regions" that needed the full sample budget.
+      </p>
+
+      <h3>Debugging</h3>
+      <p>
+        The main issue was a variable name collision, the loop variable <b>i</b> was reused for the convergence measure I, silently overwriting the loop counter. Renamed to fix. Also had the adaptive sampling check placed after the loop instead of inside it, meaning convergence was never checked during sampling. The sampleCountBuffer line had sampleBuffer instead of sampleBuffer.w for the stride calculation, causing an array index error.
+      </p>
+
+      <h3>Results — Scene 1</h3>
+      <div class="img-grid cols-2">
+        <figure class="img-card">
+          <img src="images/bunny_adaptive.png" alt =" noise free render" />
+          <figcaption>Noise-free render — 2048 max spp</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/bunny_adaptive_rate.png" alt =" adaptive rate" />
+          <figcaption>Sample rate image — red=high, blue=low</figcaption>
+        </figure>
+      </div>
+
+      <h3>Results — Scene 2</h3>
+      <div class="img-grid cols-2">
+        <figure class="img-card">
+          <img src="images/spheres_adaptive.png" alt ="sphere"/>
+          <figcaption>Second scene — noise-free render</figcaption>
+        </figure>
+        <figure class="img-card">
+          <img src="images/spheres_adaptive_rate.png" alt ="sphere rate"/>
+          <figcaption>Second scene — sample rate image</figcaption>
+        </figure>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Whirlpool amber hero animation -->
+<script>
+  (function() {
+    const canvas = document.getElementById('whirlpool');
+    const ctx = canvas.getContext('2d');
+    let W, H, t = 0;
+
+    function resize() {
+      W = canvas.width = canvas.offsetWidth;
+      H = canvas.height = canvas.offsetHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    const ARMS = 5;
+    const PARTICLES = 320;
+
+    const particles = Array.from({ length: PARTICLES }, (_, i) => ({
+      angle: (i / PARTICLES) * Math.PI * 2 * ARMS + Math.random() * 0.4,
+      r: 0.05 + Math.random() * 0.88,
+      speed: 0.0004 + Math.random() * 0.0006,
+      size: 1.2 + Math.random() * 2.8,
+      bright: 0.35 + Math.random() * 0.65,
+      drift: (Math.random() - 0.5) * 0.0008,
+    }));
+
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+
+      const cx = W * 0.62, cy = H * 0.42;
+      const maxR = Math.min(W, H) * 0.46;
+
+      // soft core glow
+      const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.55);
+      coreGrad.addColorStop(0,   'rgba(120, 180, 255, 0.13)');
+      coreGrad.addColorStop(0.4, 'rgba(91, 140, 255, 0.07)');
+      coreGrad.addColorStop(1,   'rgba(0,0,0,0)');
+      ctx.fillStyle = coreGrad;
+      ctx.fillRect(0, 0, W, H);
+
+      for (const p of particles) {
+        p.angle += p.speed + p.drift;
+        // spiral: tighter near center, wider outside
+        const spiralAngle = p.angle + p.r * 3.2 + t * 0.18;
+        const px = cx + Math.cos(spiralAngle) * p.r * maxR;
+        const py = cy + Math.sin(spiralAngle) * p.r * maxR * 0.72;
+
+        // color: cyan core → blue mid → deep purple edge
+        const heat = 1 - p.r;
+        const rC = Math.round(80 + heat * 100);
+        const gC = Math.round(120 + heat * 80);
+        const bC = Math.round(255);
+        const alpha = p.bright * (0.25 + heat * 0.55) * (0.6 + 0.4 * Math.sin(t * 1.3 + p.angle));
+
+        ctx.beginPath();
+        ctx.arc(px, py, p.size * (0.5 + heat * 0.7), 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${rC},${gC},${bC},${alpha})`;
+        ctx.fill();
+      }
+
+      // trailing streaks along arms
+      for (let arm = 0; arm < ARMS; arm++) {
+        const baseAngle = (arm / ARMS) * Math.PI * 2 + t * 0.22;
+        const grad = ctx.createLinearGradient(
+                cx, cy,
+                cx + Math.cos(baseAngle) * maxR,
+                cy + Math.sin(baseAngle) * maxR * 0.72
+        );
+        grad.addColorStop(0,   'rgba(160,180,255,0.06)');
+        grad.addColorStop(0.5, 'rgba(91,140,255,0.04)');
+        grad.addColorStop(1,   'rgba(0,0,0,0)');
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(
+                cx + Math.cos(baseAngle) * maxR,
+                cy + Math.sin(baseAngle) * maxR * 0.72
+        );
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 60 + 20 * Math.sin(t + arm);
+        ctx.stroke();
+      }
+
+      t += 0.012;
+      requestAnimationFrame(draw);
+    }
+    draw();
+  })();
+</script>
+
+<!-- Active nav highlight -->
+<script>
+  const links = document.querySelectorAll('.sidebar a');
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.sidebar a[href="#${e.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { threshold: 0.3 });
+
+  document.querySelectorAll('.part, .overview').forEach(el => observer.observe(el));
+</script>
+
+</body>
 </html>
