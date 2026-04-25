@@ -1,109 +1,952 @@
-<html>
-	<head>
-		<script src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=default'></script>
-		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-		<style>
-			h1 {
-				text-align: center;
-			}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<title>CS184 · Homework 4 · Cloth Simulation</title>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=default"></script>
+	<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+	<style>
+		:root {
+			--bg: #0a0b10;
+			--surface: #13161d;
+			--surface2: #1a1e28;
+			--border: #252a38;
+			--accent: #7ecfff;
+			--accent2: #ffd580;
+			--accent3: #c084fc;
+			--text: #e2e6f0;
+			--muted: #7a829a;
+			--heading: #ffffff;
+			--tag-bg: #1e2436;
+		}
 
-			.container {
-				margin: 0 auto;
-				padding: 60px 20%;
-			}
+		*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+		html { scroll-behavior: smooth; }
 
-			figure {
-				text-align: center;
-			}
+		body {
+			background: var(--bg);
+			color: var(--text);
+			font-family: 'DM Sans', sans-serif;
+			font-weight: 300;
+			line-height: 1.75;
+			font-size: 16px;
+		}
 
-			img {
-				display: inline-block;
-			}
+		/* ── Hero canvas ── */
+		.hero-wrap {
+			position: relative;
+			height: 700px;
+			overflow: hidden;
+		}
 
-			body {
-				font-family: 'Inter', sans-serif;
-			}
-		</style>
-	</head>
-	<body>
-		<div class="container">
-		<h1>CS184/284A Spring 2025 Homework 4 Write-Up</h1>
-		<div style="text-align: center;">Names: </div>
+		#hero-canvas {
+			position: absolute;
+			inset: 0;
+			width: 100%;
+			height: 100%;
+		}
 
-		<br>
+		.hero-content {
+			position: absolute;
+			bottom: 0;
+			left: 0;
+			right: 0;
+			padding: 0 8vw 4rem;
+			z-index: 10;
+			background: linear-gradient(to top, rgba(10,11,16,0.95) 0%, rgba(10,11,16,0.6) 60%, transparent 100%);
+		}
 
-		Link to webpage: (TODO) <a href="https://cs184.eecs.berkeley.edu/sp25">cs184.eecs.berkeley.edu/sp25</a>
+		.hero-label {
+			font-family: 'DM Mono', monospace;
+			font-size: 0.68rem;
+			letter-spacing: 0.22em;
+			text-transform: uppercase;
+			color: var(--accent);
+			margin-bottom: 1rem;
+		}
 
-		<br>
+		.hero h1 {
+			font-family: 'Playfair Display', serif;
+			font-size: clamp(2.8rem, 5vw, 5rem);
+			font-weight: 700;
+			line-height: 1.06;
+			color: var(--heading);
+			margin-bottom: 1.2rem;
+		}
 
-		Link to GitHub repository: (TODO) <a href="https://cs184.eecs.berkeley.edu/sp25">cs184.eecs.berkeley.edu/sp25</a>
+		.hero h1 em {
+			font-style: italic;
+			color: var(--accent2);
+		}
 
-		<figure>
-			<img src="clothsim.png" alt="Cloth draped over sphere" style="width:70%"/>
-			<figcaption>You can add images with captions!</figcaption>
-		</figure>
+		.hero-meta {
+			display: flex;
+			gap: 2rem;
+			flex-wrap: wrap;
+			align-items: center;
+			margin-bottom: 1.2rem;
+		}
 
-		<!--
-		We've already added one heading per part, to make your write-up as navigable when grading. Please fit your write-up within these sections!
-		-->
+		.hero-meta span {
+			font-family: 'DM Mono', monospace;
+			font-size: 0.74rem;
+			color: var(--muted);
+			letter-spacing: 0.06em;
+		}
 
+		.tag-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+		.tag {
+			font-family: 'DM Mono', monospace;
+			font-size: 0.63rem;
+			letter-spacing: 0.1em;
+			text-transform: uppercase;
+			background: var(--tag-bg);
+			color: var(--accent);
+			border: 1px solid rgba(126,207,255,0.2);
+			border-radius: 3px;
+			padding: 0.2rem 0.5rem;
+		}
+
+		.tag.amber { color: var(--accent2); border-color: rgba(255,213,128,0.2); }
+		.tag.purple { color: var(--accent3); border-color: rgba(192,132,252,0.2); }
+
+		/* ── Hero action links ── */
+		.hero-links {
+			display: flex;
+			gap: 1.5rem;
+			flex-wrap: wrap;
+			margin-top: 1.4rem;
+		}
+
+		.hero-links a {
+			font-family: 'DM Mono', monospace;
+			font-size: 0.72rem;
+			letter-spacing: 0.1em;
+			text-transform: uppercase;
+			color: var(--muted);
+			text-decoration: none;
+			border-bottom: 1px solid var(--border);
+			padding-bottom: 2px;
+			transition: color 0.2s, border-color 0.2s;
+		}
+
+		.hero-links a:hover { color: var(--accent); border-color: var(--accent); }
+		.hero-links a.primary { color: var(--accent); border-color: rgba(126,207,255,0.4); }
+		.hero-links a.primary:hover { border-color: var(--accent); }
+
+		/* ── Layout ── */
+		.layout { display: flex; }
+
+		/* ── Sidebar ── */
+		.sidebar {
+			width: 230px;
+			flex-shrink: 0;
+			position: sticky;
+			top: 0;
+			height: 100vh;
+			overflow-y: auto;
+			padding: 2.5rem 1.5rem;
+			border-right: 1px solid var(--border);
+			background: var(--surface);
+		}
+
+		.sidebar-top-label {
+			font-family: 'DM Mono', monospace;
+			font-size: 0.58rem;
+			letter-spacing: 0.22em;
+			text-transform: uppercase;
+			color: var(--muted);
+			margin-bottom: 1rem;
+			padding-bottom: 0.8rem;
+			border-bottom: 1px solid var(--border);
+		}
+
+		.sidebar-group {
+			margin-bottom: 1.2rem;
+		}
+
+		.sidebar-group-label {
+			font-family: 'DM Mono', monospace;
+			font-size: 0.56rem;
+			letter-spacing: 0.2em;
+			text-transform: uppercase;
+			color: var(--muted);
+			opacity: 0.6;
+			padding: 0.4rem 0.6rem 0.2rem;
+		}
+
+		.sidebar nav { display: flex; flex-direction: column; gap: 0.15rem; }
+
+		.sidebar a {
+			font-family: 'DM Mono', monospace;
+			font-size: 0.69rem;
+			color: var(--muted);
+			text-decoration: none;
+			padding: 0.32rem 0.6rem 0.32rem 1rem;
+			border-radius: 4px;
+			letter-spacing: 0.03em;
+			transition: color 0.2s, background 0.2s;
+			display: block;
+		}
+
+		.sidebar a.top-level {
+			padding-left: 0.6rem;
+			font-size: 0.7rem;
+		}
+
+		.sidebar a:hover { color: var(--accent); background: rgba(126,207,255,0.06); }
+		.sidebar a.active { color: var(--accent); background: rgba(126,207,255,0.1); }
+
+		/* ── Main ── */
+		main { flex: 1; max-width: 900px; padding: 5rem 6vw 8rem; }
+
+		/* ── Overview ── */
+		.overview {
+			margin-bottom: 5rem;
+			padding-bottom: 3rem;
+			border-bottom: 1px solid var(--border);
+		}
+
+		.overview p { color: var(--text); margin-bottom: 1rem; }
+
+		/* ── Parts ── */
+		.part {
+			margin-bottom: 5rem;
+			padding-bottom: 3rem;
+			border-bottom: 1px solid var(--border);
+			scroll-margin-top: 2rem;
+		}
+
+		.part:last-child { border-bottom: none; }
+
+		.part h2 {
+			font-family: 'Playfair Display', serif;
+			font-size: 1.9rem;
+			font-weight: 700;
+			color: var(--heading);
+			margin-bottom: 0.3rem;
+		}
+
+		.part-meta {
+			font-family: 'DM Mono', monospace;
+			font-size: 0.67rem;
+			letter-spacing: 0.15em;
+			text-transform: uppercase;
+			color: var(--accent);
+			margin-bottom: 1.8rem;
+		}
+
+		.part-meta.purple { color: var(--accent3); }
+
+		.part p { margin-bottom: 1.2rem; color: var(--text); }
+
+		.part h3 {
+			font-family: 'DM Sans', sans-serif;
+			font-size: 1rem;
+			font-weight: 500;
+			color: var(--heading);
+			margin: 2rem 0 0.6rem;
+		}
+
+		/* ── Image grids ── */
+		.img-grid { display: grid; gap: 1rem; margin: 1.5rem 0; }
+		.img-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+		.img-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+		.img-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+		.img-card {
+			background: var(--surface);
+			border: 1px solid var(--border);
+			border-radius: 6px;
+			overflow: hidden;
+		}
+
+		.img-card img {
+			width: 100%;
+			display: block;
+			object-fit: cover;
+		}
+
+		/* To link images easily: replace src="images/FILENAME.png" with your screenshot */
+		.img-card figcaption {
+			padding: 0.5rem 0.75rem;
+			font-family: 'DM Mono', monospace;
+			font-size: 0.64rem;
+			color: var(--muted);
+			letter-spacing: 0.04em;
+		}
+
+		/* ── Callout ── */
+		.callout {
+			background: var(--surface);
+			border-left: 3px solid var(--accent);
+			border-radius: 0 6px 6px 0;
+			padding: 1rem 1.2rem;
+			margin: 1.5rem 0;
+			font-size: 0.92rem;
+		}
+
+		.callout.amber { border-color: var(--accent2); }
+		.callout.purple { border-color: var(--accent3); }
+
+		/* ── Code ── */
+		code {
+			font-family: 'DM Mono', monospace;
+			font-size: 0.82em;
+			background: var(--surface2);
+			border: 1px solid var(--border);
+			border-radius: 3px;
+			padding: 0.1em 0.35em;
+			color: var(--accent2);
+		}
+
+		/* ── Math ── */
+		.math-block {
+			background: var(--surface);
+			border: 1px solid var(--border);
+			border-radius: 6px;
+			padding: 1rem 1.5rem;
+			margin: 1.2rem 0;
+			overflow-x: auto;
+		}
+
+		/* ── Extra credit badge ── */
+		.ec-badge {
+			display: inline-block;
+			font-family: 'DM Mono', monospace;
+			font-size: 0.6rem;
+			letter-spacing: 0.12em;
+			text-transform: uppercase;
+			background: rgba(192,132,252,0.12);
+			color: var(--accent3);
+			border: 1px solid rgba(192,132,252,0.3);
+			border-radius: 3px;
+			padding: 0.2rem 0.5rem;
+			margin-left: 0.6rem;
+			vertical-align: middle;
+		}
+	</style>
+</head>
+<body>
+
+<!-- Hero -->
+<div class="hero-wrap">
+	<canvas id="hero-canvas"></canvas>
+	<div class="hero-content">
+		<div class="hero hero-label">CS 184 / 284A · Spring 2026</div>
+		<div class="hero">
+			<h1>Cloth <em>Simulation</em></h1>
+			<div class="hero-meta">
+				<span>Allena Oglivie</span>
+				<span>Homework 4</span>
+				<span>UC Berkeley</span>
+			</div>
+			<div class="hero-links">
+				<a href="#overview" class="primary">↓ Scroll to Writeup</a>
+				<a href="https://github.com/cal-cs184-student/hw4-clothsim-4-0_allena_train_-4" target="_blank">GitHub Repo</a>
+				<a href="https://cs184.eecs.berkeley.edu" target="_blank">Course Site</a>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="layout">
+
+	<!-- Sidebar -->
+	<aside class="sidebar">
+		<div class="sidebar-top-label">CS184 · HW4</div>
+		<nav>
+			<div class="sidebar-group">
+				<div class="sidebar-group-label">Overview</div>
+				<a href="#overview" class="top-level">Project Summary</a>
+			</div>
+			<div class="sidebar-group">
+				<div class="sidebar-group-label">Part 1</div>
+				<a href="#part1">Masses &amp; Springs</a>
+				<a href="#part1">Grid Construction</a>
+				<a href="#part1">Spring Types</a>
+			</div>
+			<div class="sidebar-group">
+				<div class="sidebar-group-label">Part 2</div>
+				<a href="#part2">Numerical Integration</a>
+				<a href="#part2">Verlet Integration</a>
+				<a href="#part2">Deformation Constraints</a>
+			</div>
+			<div class="sidebar-group">
+				<div class="sidebar-group-label">Part 3</div>
+				<a href="#part3">Collisions</a>
+				<a href="#part3">Sphere Collision</a>
+				<a href="#part3">Plane Collision</a>
+			</div>
+			<div class="sidebar-group">
+				<div class="sidebar-group-label">Part 4</div>
+				<a href="#part4">Self-Collision</a>
+				<a href="#part4">Spatial Hashing</a>
+			</div>
+			<div class="sidebar-group">
+				<div class="sidebar-group-label">Part 5</div>
+				<a href="#part5">Shaders</a>
+				<a href="#part5">Diffuse</a>
+				<a href="#part5">Blinn-Phong</a>
+				<a href="#part5">Texture Mapping</a>
+				<a href="#part5">Bump &amp; Displacement</a>
+				<a href="#part5">Mirror</a>
+			</div>
+			<div class="sidebar-group">
+				<div class="sidebar-group-label">Extra Credit</div>
+				<a href="#extracredit">Holographic Shader</a>
+			</div>
+		</nav>
+	</aside>
+
+	<!-- Main -->
+	<main>
+
+		<!-- Overview -->
 		<h2>Overview</h2>
-		Give a high-level overview of what you implemented in this homework. Think about what you've built as a whole. Share your thoughts on what interesting things you've learned from completing the homework.
+		<section class="overview" id="overview">
+			<p>
+				This homework, although being the last of assignment of the Computer Graphic class, is my build of a real time cloth simulation. The simulation is based on the foundation of the mass spring system. In short, point masses make up the mass spring system and are connected by three types, structural, shearing, and bending springs. These springs fall and fold under gravity like real springs, collide with primitives, and avoid clipping through themeselves by spatial hashing and thanks to math. Finally, to give the cloth a realistic look GPU shaders handle lighting from diffuse to environment mapped reflections. Plus, I created a custom holographic shader!
+			</p>
+		</section>
 
-		<h2>Part 1: Masses and springs</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+		<!-- Part 1 -->
+		<section class="part" id="part1">
+			<h2>Masses &amp; Springs</h2>
+			<div class="part-meta">Part 1 · Building the Grid</div>
 
-		<p>Here is an example 2x2 gridlike structure using an HTML table. Each <b>tr</b> is a row and each <b>td</b> is a column in that row. You might find this useful for framing and showing your result images in an organized fashion.</p>
-		<div style="display: flex; flex-direction: column; align-items: center;">
-			<table style="width: 100%; text-align: center; border-collapse: collapse;">
-			  <tr>
-				<td style="text-align: center;">
-				  <img src="clothsim.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
-				</td>
-				<td style="text-align: center;">
-				  <img src="clothsim.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
-				</td>
-			  </tr>
-			  <tr>
-				<td style="text-align: center;">
-				  <img src="clothsim.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
-				</td>
-				<td style="text-align: center;">
-				  <img src="clothsim.png" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
-				</td>
-			  </tr>
-			</table>
-		</div>
+			<p>
+				The cloth is represented into the grid system via <code>num_width_points × num_height_points</code> grid of point masses stored in row-major order. For the <em>vertical</em> orientation, point masses are placed over the XY plane with a small random Z offset between ±1/1000. The z offset is small random value that won't affect vertical placement. For <em>horizontal</em> orientation, Y is fixed at 1 and the grid spans the XZ plane. Y does not have an offset here because it will always stay at a constant 1 for horizontal placement.
+			</p>
 
-		<h2>Part 2: Simulation via numerical integration</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+			<p>Mentioned in the overview, springs connect neighboring masses in three types. </p>
+			<ul>
+				<li>Structural springs connect each mass to the one directly to its left and directly above it.</li>
+				<li>Shearing springs connect diagonally to the upper-left and upper-right neighbors, resisting skewing forces.</li>
+				<li>Bending springs skip one mass, connecting two to the left and two above, resisting folding.</li>
+			</ul>
 
-		<h2>Part 3: Handling collisions with other objects</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 
-		<h2>Part 4: Handling self-collisions</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+			<div class="callout">
+				Notice!
+				For my implementation, all point masses are added before any springs, since springs store pointers into the <code>point_masses</code> vector. Adding springs during mass insertion risks pointer invalidation if the vector reallocates.
+			</div>
 
-		<h2>Part 5: Shaders</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+			<div class="img-grid cols-2">
+				<figure class="img-card">
+					<img src="images/task1_no_shearing.png" alt="No shearing"/>
+					<figcaption>Without shearing — rectangular grid only</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task1_diag.png" alt="Only shearing"/>
+					<figcaption>Only shearing — diagonal lines only</figcaption>
+				</figure>
+			</div>
+			<div class="img-grid cols-2">
+				<figure class="img-card">
+					<img src="images/task1_all.png" alt="All constraints"/>
+					<figcaption>All constraints — full triangulated mesh</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task1_overview.png" alt="Overview"/>
+					<figcaption>pinned2.json — cloth wireframe overview</figcaption>
+				</figure>
+			</div>
+		</section>
 
-		<h2>(Optional) Part 6: Extra Credit - Additional cloth simulation features!</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-		
-		<h2>Additional Notes (please remove)</h2>
-		<ul>
-			<li>You can also add code if you'd like as so: <code>code code code</code></li>
-			<li>If you'd like to add math equations, 
-				<ul>
-					<li>You can write inline equations like so: \( a^2 + b^2 = c^2 \)</li>
-					<li>You can write display equations like so: \[ a^2 + b^2 = c^2 \]</li>
-				</ul>
-			</li>
-		</ul>
-		</div>
-	</body>
+		<!-- Part 2 -->
+		<section class="part" id="part2">
+			<h2>Numerical Integration</h2>
+			<div class="part-meta">Part 2 · Simulating Physics</div>
+
+			<p>
+				For this step, it's important to understand how each timestep affects the positions. Each timestep applies forces then intergrates each positions to apply the force in the simulation. For example a type of forces:
+			</p>
+			<ul>
+				<li>External accelerations (gravity) are summed and multiplied by mass.</li>
+			</ul>
+
+			<p>
+				Spring correction forces follow Hooke's law! Hooke's law is applied by bending springs use a 20% reduced spring constant to model weaker fold resistance.
+			</p>
+
+			<div class="math-block">
+				\[ F_s = k_s \cdot (|\mathbf{p}_a - \mathbf{p}_b| - l) \]
+			</div>
+
+			<p>
+				Another necessary formula to get velocity to accurately adjust density of a cloth is Verlet integration. It derives velocity from position history with a damping term. A deformation constraint ensures no spring stretches more than 10% beyond rest length per timestep.
+
+				A way that helped me understand Verlet integration is to see it as a GPS. Verlet is like a GPS that calculates your speed from two position readings. By doing so, it derives velocity from where you were vs where you are now. Also, the deformation constraint is like two people holding a rubber band that's stretched too far. If you push them toward each other along the same line without changing direction.
+			</p>
+
+			<div class="math-block">
+				\[ \mathbf{x}_{t+dt} = \mathbf{x}_t + (1-d)(\mathbf{x}_t - \mathbf{x}_{t-dt}) + \frac{\mathbf{F}}{m} \cdot dt^2 \]
+			</div>
+
+			<h3>Parameter observations</h3>
+			<ul>
+				<li> Low <code>ks</code> makes the cloth elastic and droopy, taking longer to swing back and forth like a pendulum, before settling.</li>
+				<li> High <code>ks</code> is stiff and barely deforms. Higher density increases gravitational effect.</li>
+				<li> Low damping causes longer oscillation, swinging back and more continously without stopping.  </li>
+				<li> High damping settles immediately without bounce. </li>
+			</ul>
+
+			<div class="img-grid cols-3">
+					<figure class="img-card">
+					<img src="images/task2_highDensity.png" alt="pinned4 resting state"/>
+					<figcaption>final resting state at density 100</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task2_ksone.png" alt="Low ks"/>
+					<figcaption>ks = 1 — very elastic, droopy cloth</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task2_highks.png" alt="High ks"/>
+					<figcaption>ks = 100 — very rigid, more folds in the cloth</figcaption>
+				</figure>
+			</div>
+		</section>
+
+		<!-- Part 3 -->
+		<section class="part" id="part3">
+			<h2>Collisions</h2>
+			<div class="part-meta">Part 3 · Spheres &amp; Planes</div>
+
+			<p>For my implementation to hande sphere collisions, I check if a point mass falls inside the sphere by comparing distance to the radius. First, I had to understand what I am checking for. The visual example of a flashlight beam exiting a glass ball, insteead of a prism, helped. If you extend the ray from the center through the point to the surface is the tangent point on the sphere my implementation finds. If inside, I find the tangent point by extending the direction from origin through the mass to the sphere surface, compute a correction from last position to that tangent, and lastly apply it scaled by friction.</p>
+
+			<p>For plane collisions, in my implementation I detect collisions by crossing. Specifically checking if the dot product of (position − plane point) with the normal changes sign between timesteps. An example I used to visualize this process is "quantum tunneling". The chance a particle phases through solid walls, the particle checked if its on the other side of the wall. In this case the plane is the wall and the cloth is the particle. I find the crossing using linear interpolation \( t = d_{last} / (d_{last} - d_{current}) \), place the tangent slightly above the surface using <code>SURFACE_OFFSET</code>, and apply the correction scaled by friction.</p>
+
+			<div class="img-grid cols-3">
+				<figure class="img-card">
+					<img src="images/task3_ks500_bottom.png" alt="ks 500 bottom view"/>
+					<figcaption>ks = 500 — loose, heavily draped</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task3_ks500_mid.png" alt="ks 500 middle view"/>
+					<figcaption>ks = 500 — loose, heavily draped</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task3_ks500_top.png" alt="ks 500 top view"/>
+					<figcaption>ks = 500 — loose, heavily draped</figcaption>
+				</figure>
+
+				<figure class="img-card">
+					<img src="images/task3_d_bottom.png" alt="ks 5000"/>
+					<figcaption>ks = 5000 — default, balanced</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task3_deafult_mid.png" alt="ks 5000"/>
+					<figcaption>ks = 5000 — default, balanced</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task3_default_top.png" alt="ks 5000"/>
+					<figcaption>ks = 5000 — default, balanced</figcaption>
+				</figure>
+
+				<figure class="img-card">
+					<img src="images/task3_50k_bottom.png" alt="ks 50000"/>
+					<figcaption>ks = 50000 — stiff, tent-like</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task3_ks50K_mid.png" alt="ks 50000"/>
+					<figcaption>ks = 50000 — stiff, tent-like</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task3_50K_top.png" alt="ks 50000"/>
+					<figcaption>ks = 50000 — stiff, tent-like</figcaption>
+				</figure>
+			</div>
+			<div class="img-grid cols-3">
+				<figure class="img-card">
+					<img src="images/task3_rest.png" alt="Plane"/>
+					<figcaption>Cloth resting on the plane, with custom color implemented</figcaption>
+				</figure>
+			</div>
+		</section>
+
+		<!-- Part 4 -->
+		<section class="part" id="part4">
+			<h2>Self-Collision</h2>
+			<div class="part-meta">Part 4 · Spatial Hashing</div>
+
+			<p>Unless you have a super computer handy on you, naive O(n²) pair-checking is too slow for real-time simulation! In my implementation I use spatial hashing! At each timestep I partition 3D space into box volumes and hash each point mass into its box. Only bucket-mates point masses are checked for collision. Below is the formula for the hashing.
+			</p>
+
+			<div class="math-block">
+				\[ \text{hash} = x_{box} \cdot p_1 + y_{box} \cdot p_2 + z_{box} \cdot p_3 \]
+			</div>
+
+			<p>
+				Box dimensions use <em>\(w = 3 \cdot \text{width} / \text{num\_width\_points}\), \(h = 3 \cdot \text{height} / \text{num\_height\_points}\), \(t = \max(w, h)\). </em> To ensure unqiue keys I decided to use large 7 digit prime multipliers. These prime numbers are stored as floats and make the resulting float per box in the 3D grid. An edge case to keep in mid is if a pair of bucket-mates is within <em>\(2 \times \text{thickness}\)</em>, a repulsion correction is applied, averaged across all pairs, and scaled by <code>simulation_steps</code>.</p>
+
+			<div class="img-grid cols-3">
+				<!--
+				<figure class="img-card">
+					<img src="images/task4_selfcolliosons.png" alt="No collisions"/>
+					<figcaption>Early — first folds appearing</figcaption>
+				</figure>
+				-->
+				<figure class="img-card">
+					<img src="images/task4_initial.png" alt="Early"/>
+					<figcaption>Early — first folds appearing</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task4_mid.png" alt="Mid"/>
+					<figcaption>Mid — cloth folding on itself</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task4_end.png" alt="Rest"/>
+					<figcaption>Rest — settled on the plane</figcaption>
+				</figure>
+			</div>
+
+			<div class="img-grid cols-3">
+				<figure class="img-card">
+					<img src="images/task4_d1.png" alt="Low density"/>
+					<figcaption>Density at 1 — fewer, larger folds</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task4_d1_folded.png" alt="Low density"/>
+					<figcaption>Density at 1 — fewer, larger folds</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task4_d1_full_fold.png" alt="Low density"/>
+					<figcaption>Density at 1 — fewer, larger folds</figcaption>
+				</figure>
+			</div>
+			<div class="img-grid cols-3">
+				<!--high density sequence -->
+				<figure class="img-card">
+					<img src="images/task4_d30_folded.png" alt="High density"/>
+					<figcaption>High density — many tight folds</figcaption>
+				</figure>
+			</div>
+
+			<!--low ks sequence -->
+			<div class="img-grid cols-3">
+				<figure class="img-card">
+					<img src="images/task4_ks1_fall.png" alt="Low ks"/>
+					<figcaption>Low ks — falls through plane, chaotic</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task4_ks1_fall2.png" alt="Low ks"/>
+					<figcaption>Low ks — falls through plane, chaotic</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task4_ks1_falling.png" alt="Low ks"/>
+					<figcaption>Low ks — falls through plane, chaotic</figcaption>
+				</figure>
+			</div>
+			<div class="img-grid cols-3">
+				<figure class="img-card">
+					<img src="images/task4_ks10K_init.png" alt="High ks"/>
+					<figcaption>High ks — stiffer, structured folds</figcaption>
+				</figure>
+
+				<figure class="img-card">
+					<img src="images/task4_ks10k_mid.png" alt="High ks"/>
+					<figcaption>High ks — stiffer, structured folds</figcaption>
+				</figure>
+
+				<figure class="img-card">
+					<img src="images/task4_10k_rest.png" alt="High ks"/>
+					<figcaption>High ks — stiffer, structured folds</figcaption>
+				</figure>
+			</div>
+
+			<div class="img-grid cols-2">
+				<figure class="img-card">
+					<img src="images/task4_selfcolliosons.png" alt="no collisions"/>
+					<figcaption>Before implementing collisions</figcaption>
+				</figure>
+
+				<figure class="img-card">
+					<img src="images/task4_selfcollision_on.png" alt="collisions on"/>
+					<figcaption>After implementing collisions, sideview to highlight folds</figcaption>
+				</figure>
+			</div>
+		</section>
+
+		<!-- Part 5 -->
+		<section class="part" id="part5">
+			<h2>Shaders</h2>
+			<div class="part-meta">Part 5 · GLSL on the GPU</div>
+
+			<p> Before this class I only understood shaders made Minecraft beautiful. From adding sunlight rays and beautiful water physics. Now I understand how shaders create such graphics and where they run. Shaders are small isolated programs running in parallel on the GPU! While running in parallel there is a vertex to fragment pipeline, math goes in (vertex) and pixel color comes out. Vertex shaders execute once per vertex, transforming geometry and passing per-vertex data to the fragment shader via varyings. Fragment shaders execute once per pixel, computing a final color using interpolated data and uniforms. This separation lets the GPU process geometry and color simultaneously at massive scale.</p>
+
+			<h3>Task 1 — Diffuse Shading</h3>
+			<div class="math-block">
+				\[ L_d = k_d \cdot \frac{I}{r^2} \cdot \max(0, \mathbf{n} \cdot \mathbf{l}) \]
+			</div>
+			<div class="img-grid cols-2">
+				<figure class="img-card">
+					<img src="images/task5.1.png" alt="Diffuse"/>
+					<figcaption>Diffuse — kd = 1.0 (white)</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task5.1_color.png" alt="Diffuse color"/>
+					<figcaption>Diffuse — kd via color picker (purple)</figcaption>
+				</figure>
+			</div>
+
+			<h3>Task 2 — Blinn-Phong</h3>
+			<p>There are three components that are crucial for Blinn-Phong shading</p>
+			<ul>
+				<li>Ambient lighting prevents pure black on the object.</li>
+				<li>Diffuse models matte scattering for texture.</li>
+				<li>Specular adds a shiny highlight using halfway vector \(\mathbf{h}\) between light and view directions, raised to shininess exponent \(p\)</li>
+			</ul>
+
+			<div class="math-block">
+				\[ L = k_a I_a + k_d \frac{I}{r^2} \max(0, \mathbf{n} \cdot \mathbf{l}) + k_s \frac{I}{r^2} \max(0, \mathbf{n} \cdot \mathbf{h})^p \]
+			</div>
+			<div class="img-grid cols-2">
+				<figure class="img-card">
+					<img src="images/task5.2_ambient.png" alt="Ambient"/>
+					<figcaption>Ambient only — ka = 0.1</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task5.2_diffuse.png" alt="Diffuse"/>
+					<figcaption>Diffuse only, purple color showing through</figcaption>
+				</figure>
+			</div>
+			<div class="img-grid cols-2">
+				<figure class="img-card">
+					<img src="images/task5.2_specular.png" alt="Specular"/>
+					<figcaption>Specular only — p = 64</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task5.2_normal.png" alt="Full Phong"/>
+					<figcaption>Full Blinn-Phong model</figcaption>
+				</figure>
+			</div>
+
+			<h3>Task 3 — Texture Mapping</h3>
+			<p>Samples <code>u_texture_1</code> at the fragment's UV coordinates using <code>texture()</code>, outputting the sampled color directly as the fragment's output. To highlight the smoothness of texture mapping, I choose a pixel art image, with the pixel grid warping along the cloth in high definition. </p>
+			<div class="img-grid cols-2">
+				<figure class="img-card">
+					<img src="images/task5.3_customtexture.png" alt="Custom texture"/>
+					<figcaption>Custom jellyfish pixel art texture!</figcaption>
+				</figure>
+			</div>
+
+			<h3>Task 4 — Bump &amp; Displacement Mapping</h3>
+			<p>
+				Bump mapping affects surface normals using height map finite differences. By creating a difference in the heigh map, bump mapping still maintains a local normal \(\mathbf{n}_o = (-dU, -dV, 1)\) transformed to world space via the TBN matrix. The sphere's and cloth's silhouette stays smooth. It gives the illusion of texturem, displacement does not.
+				</p>
+			<p>
+				Displacement mapping physically moves vertices along the normal scaled by height. Changing the vertices affects real geometry on the sphere and cloth. The changes are visible in the silhouette and at low mesh resolution. There is no illusion on the sphere nor the cloth. If you could touch the simulation, you would feel the ridges.
+			</p>
+			<div class="img-grid cols-2">
+				<figure class="img-card">
+					<img src="images/task5.4.1_h2_blanket.png" alt="Bump cloth">
+					<figcaption>Bump — cloth, height = 2</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task5.4.1_h2.png" alt="Bump sphere"/>
+					<figcaption>Bump — sphere, height = 2</figcaption>
+				</figure>
+			</div>
+			<div class="img-grid cols-2">
+				<figure class="img-card">
+					<img src="images/task5.4.1_16.png" alt="Bump -o 16"/>
+					<figcaption>Bump — -o 16 -a 16, smooth silhouette</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task5.4.1_120.png" alt="Bump -o 128"/>
+					<figcaption>Bump — -o 128 -a 128</figcaption>
+				</figure>
+			</div>
+			<div class="img-grid cols-2">
+				<figure class="img-card">
+					<img src="images/task5.4.2_16.png" alt="Displacement -o 16"/>
+					<figcaption>Displacement — -o 16 -a 16, faceted geometry</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task5.4.2_128.png" alt="Displacement -o 128"/>
+					<figcaption>Displacement — -o 128 -a 128, smooth geometry</figcaption>
+				</figure>
+			</div>
+			<div class="callout amber">
+				At -o 16 -a 16, bump mapping keeps a smooth silhouette while displacement shows visible polygon faceting. The fundamental difference between faking normals and moving actual geometry.
+			</div>
+
+			<h3>Task 5 — Mirror / Environment Map</h3>
+			<p>
+				Mirrors reflect what we see in our world, so that is exactly what I needed to calculate. My implementation computes the outgoing eye ray, reflects it across the surface normal using GLSL's built-in <code>reflect()</code>. Then samples the cubemap in that reflected direction, approximating mirror reflections without ray tracing! Saving our computers a lot of render time, and still getting a high quality mirror finish via approximation.</p>
+			<div class="img-grid cols-2">
+				<figure class="img-card">
+					<img src="images/taask5.5_cloth.png" alt="Mirror cloth"/>
+					<figcaption>Mirror shader — cloth</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task5.5_mirror.png" alt="Mirror cloth"/>
+					<figcaption>Mirror shader — cool underside! </figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/task5.5_ball.png" alt="Mirror sphere"/>
+					<figcaption>Mirror shader — sphere</figcaption>
+				</figure>
+			</div>
+		</section>
+
+		<!-- Extra Credit -->
+		<section class="part" id="extracredit">
+			<h2>Holographic Bubble Shader <span class="ec-badge">Extra Credit</span></h2>
+			<div class="part-meta purple">Custom Shader · Iridescent Fresnel + Dual Specular</div>
+
+			<p>My goal was to simulate the visual behavior of a soap bubble and a black pearl! Something with a dark glassy interior, a shifting rainbow rim, and two sharp specular glints like light catching a curved surface.</p>
+
+			<h3>The process</h3>
+			<p>Starting from a blank <code>Custom.frag</code>, I built the shader in three layers. The foundation is a Fresnel term based on Schlick's 1994 approximation: the angle between the surface normal and view direction determines how "edge-on" each pixel is. Pixels at the grazing edge get a high fresnel value of 1, pixels facing the camera directly get 0.</p>
+
+			<div class="math-block">
+				\[ f = 1 - \max(0, \mathbf{n} \cdot \mathbf{v}) \]
+			</div>
+
+			<p>That fresnel value feeds into Inigo Quilez's cosine palette formula to generate the rainbow rim color. The formula cycles through hue space as fresnel increases from 0 to 1, creating a smooth spectrum at the edges:</p>
+
+			<div class="math-block">
+				\[ \text{rainbow}(t) = 0.5 + 0.5 \cdot \cos(6.28 \cdot (t + \langle 0.0, 0.33, 0.67 \rangle)) \]
+			</div>
+
+			<p>The diffuse color is then <code>rainbow_color * fresnel²</code>. I need to square fresnel pushes color strongly to the edges and keeps the center dark like a real bubble. On top of this I layered the cubemap environment reflection blended by fresnel, a dark blue base to prevent pure black, and two specular highlights: the primary from the scene light and a secondary from a hardcoded fake light position to create the double-glint effect characteristic of glass spheres.</p>
+
+			<h3>Citations</h3>
+			<p>Schlick, C. (1994). An Inexpensive BRDF Model for Physically-based Rendering. <em>Computer Graphics Forum</em>, 13(3), 233–246. — Fresnel approximation concept.</p>
+			<p>Quilez, I. (2017). Palettes. <em>iquilezles.org</em>. — Cosine palette color cycling formula.</p>
+
+			<div class="img-grid cols-2">
+				<figure class="img-card">
+					<img src="images/custom_bubble.png" alt="Holographic sphere"/>
+					<figcaption>Holographic bubble shader — sphere with dual specular glints</figcaption>
+				</figure>
+				<figure class="img-card">
+					<img src="images/custom_blanket.png" alt="Holographic cloth"/>
+					<figcaption>Holographic bubble shader — cloth, rainbow rim follows every fold</figcaption>
+				</figure>
+			</div>
+
+			<div class="callout purple">
+				The rainbow rim emerges purely from math!!! :) Nno texture lookup needed. The Fresnel term encodes viewing angle, the cosine palette maps that to hue, and squaring the Fresnel term confines color to the grazing edges exactly like a real soap bubble!
+			</div>
+		</section>
+
+	</main>
+</div>
+
+<script>
+	const canvas = document.getElementById('hero-canvas');
+	const ctx = canvas.getContext('2d');
+
+	let W, H, dots, t = 0;
+
+	function resize() {
+		W = canvas.width = canvas.offsetWidth;
+		H = canvas.height = canvas.offsetHeight;
+		buildDots();
+	}
+
+	function buildDots() {
+		dots = [];
+		const spacing = 28;
+		const cols = Math.ceil(W / spacing) + 2;
+		const rows = Math.ceil(H / spacing) + 2;
+		for (let r = 0; r < rows; r++) {
+			for (let c = 0; c < cols; c++) {
+				dots.push({
+					bx: c * spacing - spacing,
+					by: r * spacing - spacing,
+					phase: Math.random() * Math.PI * 2,
+					speed: 0.3 + Math.random() * 0.4
+				});
+			}
+		}
+	}
+
+	// Aurora blobs
+	const blobs = [
+		{ x: 0.15, y: 0.3, r: 0.45, h: 260, s: 70, l: 25, phase: 0 },
+		{ x: 0.55, y: 0.2, r: 0.4,  h: 230, s: 80, l: 20, phase: 1.2 },
+		{ x: 0.8,  y: 0.5, r: 0.38, h: 290, s: 60, l: 18, phase: 2.4 },
+		{ x: 0.3,  y: 0.7, r: 0.35, h: 310, s: 50, l: 15, phase: 0.8 },
+	];
+
+	function drawAurora(time) {
+		ctx.fillStyle = '#0a0b10';
+		ctx.fillRect(0, 0, W, H);
+
+		blobs.forEach(b => {
+			const pulse = 1 + 0.08 * Math.sin(time * 0.4 + b.phase);
+			const rx = b.r * W * pulse;
+			const ry = b.r * H * 0.7 * pulse;
+			const bx = b.x * W;
+			const by = b.y * H;
+			const alpha = 0.55 + 0.08 * Math.sin(time * 0.3 + b.phase);
+			const grad = ctx.createRadialGradient(bx, by, 0, bx, by, Math.max(rx, ry));
+			grad.addColorStop(0, `hsla(${b.h}, ${b.s}%, ${b.l}%, ${alpha})`);
+			grad.addColorStop(1, `hsla(${b.h}, ${b.s}%, ${b.l}%, 0)`);
+			ctx.save();
+			ctx.scale(rx / Math.max(rx, ry), ry / Math.max(rx, ry));
+			ctx.beginPath();
+			ctx.arc(bx * Math.max(rx,ry)/rx, by * Math.max(rx,ry)/ry, Math.max(rx, ry), 0, Math.PI * 2);
+			ctx.fillStyle = grad;
+			ctx.fill();
+			ctx.restore();
+		});
+	}
+
+	function drawDots(time) {
+		dots.forEach(d => {
+			// Wave ripple through the dot grid
+			const wave1 = Math.sin(d.bx * 0.018 - time * 0.7 + d.by * 0.012);
+			const wave2 = Math.cos(d.by * 0.022 - time * 0.5 + d.bx * 0.008);
+			const wave = (wave1 + wave2) * 0.5;
+
+			const x = d.bx + wave * 6;
+			const y = d.by + wave * 4;
+
+			// Dot size based on wave
+			const size = 1.2 + wave * 1.8;
+			if (size < 0.3) return;
+
+			// Opacity: base + wave contribution
+			const opacity = 0.12 + Math.max(0, wave) * 0.35;
+
+			// Sample aurora brightness at this dot position
+			// approximated by distance to blob centers
+			let auroraInfluence = 0;
+			blobs.forEach(b => {
+				const dx = x / W - b.x;
+				const dy = y / H - b.y;
+				const dist = Math.sqrt(dx * dx + dy * dy);
+				auroraInfluence += Math.max(0, 1 - dist / b.r) * 0.5;
+			});
+			auroraInfluence = Math.min(auroraInfluence, 1);
+
+			const finalOpacity = Math.min(opacity + auroraInfluence * 0.25, 0.85);
+
+			ctx.beginPath();
+			ctx.arc(x, y, Math.max(0.3, size), 0, Math.PI * 2);
+			ctx.fillStyle = `rgba(210, 228, 255, ${finalOpacity})`;
+			ctx.fill();
+		});
+	}
+
+	function frame(ts) {
+		t = ts * 0.001;
+		drawAurora(t);
+		drawDots(t);
+		requestAnimationFrame(frame);
+	}
+
+	window.addEventListener('resize', resize);
+	resize();
+	requestAnimationFrame(frame);
+</script>
+
+</body>
 </html>
